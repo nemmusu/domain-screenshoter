@@ -60,6 +60,8 @@ python dscreenshoter.py --vpn-dir <VPN_CONFIG_DIR> -d <DOMAIN_LIST_FILE> -s <OUT
 
 ## Examples
 
+![example usage](img-demo/demo.png)
+
 ### Example 1: Basic Usage
 Take screenshots of domains listed in `domains.txt` with 30 threads, switching VPN after 50 requests:
 ```bash
