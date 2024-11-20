@@ -12,6 +12,7 @@ This tool automates taking screenshots of a list of domains while routing reques
 - **Multithreading**: Supports concurrent processing of domains with a specified number of threads.
 - **Progress Tracking**: Displays progress bars for domains processed, screenshots taken, and requests made.
 - **Error Logging**: Logs errors into a file in the output directory for further analysis.
+- **Delay Between VPN Changes**: Allows specifying a delay (in seconds) before connecting to a new VPN after disconnecting the current one.
 
 ---
 
@@ -37,7 +38,9 @@ This tool automates taking screenshots of a list of domains while routing reques
    pip install -r requirements.txt
    ```
 
-3. Ensure you have `chromedriver` installed and configured. Update the path to `chromedriver` in the `config.ini` file.
+3. Ensure you have `chromedriver` installed and configured:
+   - Download from the [official ChromeDriver repository](https://chromedriver.storage.googleapis.com/index.html).
+   - Update the path to `chromedriver` in the `config.ini` file.
 
 ---
 
@@ -45,7 +48,7 @@ This tool automates taking screenshots of a list of domains while routing reques
 
 Run the script with the following command:
 ```bash
-python dscreenshoter.py --vpn-dir <VPN_CONFIG_DIR> -d <DOMAIN_LIST_FILE> -s <OUTPUT_DIR> -n <MAX_REQUESTS> -t <THREADS> --timeout <TIMEOUT>
+python dscreenshoter.py --vpn-dir <VPN_CONFIG_DIR> -d <DOMAIN_LIST_FILE> -s <OUTPUT_DIR> -n <MAX_REQUESTS> -t <THREADS> --timeout <TIMEOUT> --delay <DELAY>
 ```
 
 ### Arguments:
@@ -55,6 +58,7 @@ python dscreenshoter.py --vpn-dir <VPN_CONFIG_DIR> -d <DOMAIN_LIST_FILE> -s <OUT
 - `-n`, `--max-requests`: Maximum number of requests to process before changing VPN.
 - `-t`, `--threads`: Number of threads to use for concurrent processing.
 - `--timeout`: Timeout (in seconds) for page loading in Selenium.
+- `--delay`: Delay (in seconds) before connecting to a new VPN after disconnecting the current one. Defaults to 0.
 
 ---
 
@@ -79,7 +83,13 @@ Output:
 Session found for file 'domains.txt_screenshots.session' with 100/1000 domains processed and 90 screenshots completed. Continue? (y/n)
 ```
 
-### Example 3: Error Logging
+### Example 3: Add Delay Between VPN Changes
+Add a 5-second delay between VPN disconnection and reconnection:
+```bash
+python dscreenshoter.py --vpn-dir ovpn-configs -d domains.txt -s screenshots -n 50 -t 30 --timeout 10 --delay 5
+```
+
+### Example 4: Error Logging
 Errors are logged in `error_log.txt` inside the output directory:
 ```
 example.com: TimeoutException
@@ -91,7 +101,5 @@ testsite.org: WebDriverException
 ## Notes
 
 1. **VPN Configuration**: Ensure your `.ovpn` files are configured correctly and can connect without additional inputs.
-2. **Chromedriver**: Download and configure `chromedriver` compatible with your Chrome version.
+2. **Chromedriver**: Download and configure `chromedriver` compatible with your Chrome version from the [official ChromeDriver repository](https://chromedriver.storage.googleapis.com/index.html).
 3. **Permissions**: Running OpenVPN may require `sudo`. Adjust your environment accordingly.
-
-

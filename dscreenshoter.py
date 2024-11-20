@@ -100,7 +100,7 @@ def load_session(session_file):
     return None
 
 
-def process_domains(domains, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, session_file):
+def process_domains(domains, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, session_file, delay):
     vpn_process = None
     processed_domains = []
     remaining_domains = domains
@@ -138,6 +138,7 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
             while not connected and connection_attempts < 5:
                 if vpn_process:
                     vpn_process.terminate()
+                    time.sleep(delay)  # Wait before reconnecting to a new VPN
 
                 vpn_process = connect_vpn(vpn_dir)
                 current_ip = wait_for_vpn_connection()
@@ -208,6 +209,7 @@ def main():
     parser.add_argument("-n", "--max-requests", type=int, required=True, help="Max requests before changing VPN.")
     parser.add_argument("-t", "--threads", type=int, required=True, help="Number of threads to use.")
     parser.add_argument("-to", "--timeout", type=int, required=True, help="Page load timeout.")
+    parser.add_argument("-de", "--delay", type=int, default=0, help="Delay in seconds before connecting to a new VPN.")
     args = parser.parse_args()
 
     webdriver_path = get_webdriver_path()
@@ -218,7 +220,7 @@ def main():
         domains = [line.strip() for line in file if line.strip()]
 
     session_file = f"{os.path.basename(args.domains)}_{os.path.basename(args.screenshot_dir)}.session"
-    process_domains(domains, args.screenshot_dir, args.vpn_dir, args.max_requests, args.threads, args.timeout, webdriver_path, session_file)
+    process_domains(domains, args.screenshot_dir, args.vpn_dir, args.max_requests, args.threads, args.timeout, webdriver_path, session_file, args.delay)
 
 
 if __name__ == "__main__":
