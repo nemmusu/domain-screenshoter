@@ -1,5 +1,5 @@
 
-# Domain Screenshot Tool with VPN
+# Domain Screenshoter 
 
 This tool automates taking screenshots of a list of domains while routing requests through a VPN. It manages sessions, retries on failures, and utilizes Selenium for capturing screenshots in a headless browser.
 
