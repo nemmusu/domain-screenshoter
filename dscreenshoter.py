@@ -20,13 +20,11 @@ def validate_session(domains, screenshot_dir, session):
     processed_domains = session["processed_domains"]
     screenshots_done = session["screenshots_done"]
 
-    # Reconcile processed_domains with actual saved screenshots
     actual_screenshots = len([f for f in os.listdir(screenshot_dir) if f.endswith(".png")])
     if screenshots_done != actual_screenshots:
         tqdm.write(f"Adjusting screenshots count: {screenshots_done} -> {actual_screenshots}")
         screenshots_done = actual_screenshots
 
-    # Ensure processed_domains count matches total domains
     if len(processed_domains) > len(domains):
         tqdm.write("Warning: Processed domains exceed total domains. Adjusting session data.")
         processed_domains = domains[:len(domains)]
