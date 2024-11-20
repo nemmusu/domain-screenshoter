@@ -28,8 +28,8 @@ This tool automates taking screenshots of a list of domains while routing reques
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/domain-screenshot-vpn.git
-   cd domain-screenshot-vpn
+   git clone https://github.com/yourusername/domain-screenshoter.git
+   cd domain-screenshoter
    ```
 
 2. Install the required dependencies:
