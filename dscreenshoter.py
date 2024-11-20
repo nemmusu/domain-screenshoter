@@ -16,6 +16,24 @@ import logging
 import json
 
 
+def validate_session(domains, screenshot_dir, session):
+    processed_domains = session["processed_domains"]
+    screenshots_done = session["screenshots_done"]
+
+    # Reconcile processed_domains with actual saved screenshots
+    actual_screenshots = len([f for f in os.listdir(screenshot_dir) if f.endswith(".png")])
+    if screenshots_done != actual_screenshots:
+        tqdm.write(f"Adjusting screenshots count: {screenshots_done} -> {actual_screenshots}")
+        screenshots_done = actual_screenshots
+
+    # Ensure processed_domains count matches total domains
+    if len(processed_domains) > len(domains):
+        tqdm.write("Warning: Processed domains exceed total domains. Adjusting session data.")
+        processed_domains = domains[:len(domains)]
+
+    return processed_domains, screenshots_done
+
+
 def setup_logging(output_folder):
     log_file = os.path.join(output_folder, "error_log.txt")
     logging.basicConfig(filename=log_file, level=logging.ERROR, format="%(message)s")
@@ -108,20 +126,25 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
 
     session = load_session(session_file)
     if session:
+        processed_domains, screenshots_done = validate_session(domains, output_folder, session)
         print(
-            f"Session found for file '{os.path.basename(session_file)}' with {len(session['processed_domains'])}/{len(domains)} domains processed and {session['screenshots_done']} screenshots completed. Continue? (y/n)"
+            f"Session found for file '{os.path.basename(session_file)}' with {len(processed_domains)}/{len(domains)} domains processed and {screenshots_done} screenshots completed. Continue? (y/n)"
         )
         try:
             choice = input().strip().lower()
             if choice == "y":
-                processed_domains = session["processed_domains"]
-                remaining_domains = session["remaining_domains"]
-                screenshots_done = session["screenshots_done"]
+                remaining_domains = [d for d in domains if d not in processed_domains]
+                if len(processed_domains) == len(domains):  # If all domains are processed
+                    print("Session already completed. Nothing to process.")
+                    return  # Exit gracefully
             else:
                 os.remove(session_file)
+                processed_domains, remaining_domains, screenshots_done = [], domains, 0
         except KeyboardInterrupt:
-            print("\nInterrupted. Exiting.")
+            print("\nInterrupted during session load. Exiting.")
             sys.exit(0)
+    else:
+        processed_domains, remaining_domains, screenshots_done = [], domains, 0
 
     progress_bar_domains = tqdm(total=len(domains), desc="Domains processed / total", position=0)
     progress_bar_screenshots = tqdm(total=len(domains), desc="Screenshots taken / total", position=1)
@@ -129,6 +152,13 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
 
     progress_bar_domains.update(len(processed_domains))
     progress_bar_screenshots.update(screenshots_done)
+
+    if len(processed_domains) == len(domains):
+        progress_bar_domains.close()
+        progress_bar_screenshots.close()
+        progress_bar_requests.close()
+        print("All domains have already been processed. Exiting.")
+        return
 
     ip_counter = 0
     with ThreadPoolExecutor(max_workers=threads) as executor:
