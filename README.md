@@ -90,7 +90,7 @@ At the end of a session, the script identifies domains that failed due to specif
 
 If you choose `y`, the script processes only the failed domains with the same settings.
 
-During retry:
+Resuming retry:
 ```
 Retry session found with 50 domains to process.
 Processed 10/50 domains, 5 screenshots taken. Continue? (y/n)
