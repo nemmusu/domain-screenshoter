@@ -100,8 +100,6 @@ All domains have been processed.
 Retry? (Enter 'y' to retry, 'n' to skip retry):
 ```
 
-...
-
 ### Example 2: Resume Session
 
 If the script is interrupted, it will ask to resume the session when re-run:
