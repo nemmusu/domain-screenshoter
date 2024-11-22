@@ -154,24 +154,7 @@ Continue? (Enter 'y' to continue, 'n' to start a new session):
 
 ### Example 4: Graceful Interrupt Handling
 
-You can interrupt the script at any point using **Ctrl+C**. The script will handle the interruption gracefully:
-
-- **During execution:**
-
-  ```
-  ^C
-  Interrupted. Cancelling pending tasks...
-  Waiting for running tasks to finish...
-  Operation cancelled by user. Session saved as 'domains.txt_screenshots.session'.
-  ```
-
-- **During input prompts:**
-
-  ```
-  Retry? (Enter 'y' to retry, 'n' to skip retry):
-  ^C
-  Operation cancelled by user.
-  ```
+You can interrupt the script at any point using **Ctrl+C**. The script will handle the interruption.
 
 ### Example 5: Add Delay Between VPN Changes
 
