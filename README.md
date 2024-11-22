@@ -101,3 +101,135 @@ Retry? (Enter 'y' to retry, 'n' to skip retry):
 ```
 
 ...
+
+### Example 2: Resume Session
+
+If the script is interrupted, it will ask to resume the session when re-run:
+
+```bash
+python dscreenshoter.py --vpn-dir ovpn-configs -d domains.txt -s screenshots -n 50 -t 30 --timeout 10 -de 0
+```
+
+**Output:**
+
+```
+Session found for file 'domains.txt_screenshots.session' with 500/1000 domains processed and 480 screenshots completed.
+Continue? (Enter 'y' to continue, 'n' to start a new session):
+```
+
+- **To continue the session:** Enter `y` and press **Enter**.
+- **To start a new session:** Enter `n` and press **Enter**.
+
+### Example 3: Retry Failed Domains with VPN Rotation
+
+At the end of a session, the script identifies domains that failed due to specific errors (e.g., timeouts) and offers an option to retry with VPN rotation:
+
+```bash
+50 domains failed due to timeout errors.
+Retry? (Enter 'y' to retry, 'n' to skip retry):
+```
+
+**If you choose `y`, the script processes only the failed domains, connecting to a new VPN before each batch.**
+
+**Output during retry:**
+
+```
+Retrying domains / total: 100%|███████████████████████████████████████████████████████████████████████████| 50/50 [01:45<00:00,  2.00s/it]
+Screenshots taken / total:  80%|████████████████████████████████████████████████████████                   | 40/50 [01:45<00:26,  2.60s/it]
+Connected to IP #1: 192.0.2.3
+
+Retry completed. 50 domains processed, 40 screenshots taken, 10 domains still failed.
+10 domains still failed after retry.
+```
+
+**Resuming Retry:**
+
+If the retry process is interrupted, you can resume it:
+
+```bash
+Retry session found with 20 domains to process.
+Processed 30/50 domains, 25 screenshots taken.
+Continue? (Enter 'y' to continue, 'n' to start a new session):
+```
+
+### Example 4: Graceful Interrupt Handling
+
+You can interrupt the script at any point using **Ctrl+C**. The script will handle the interruption gracefully:
+
+- **During execution:**
+
+  ```
+  ^C
+  Interrupted. Cancelling pending tasks...
+  Waiting for running tasks to finish...
+  Operation cancelled by user. Session saved as 'domains.txt_screenshots.session'.
+  ```
+
+- **During input prompts:**
+
+  ```
+  Retry? (Enter 'y' to retry, 'n' to skip retry):
+  ^C
+  Operation cancelled by user.
+  ```
+
+### Example 5: Add Delay Between VPN Changes
+
+Add a 5-second delay between VPN disconnection and reconnection:
+
+```bash
+python dscreenshoter.py --vpn-dir ovpn-configs -d domains.txt -s screenshots -n 50 -t 30 --timeout 10 -de 5
+```
+
+### Example 6: Error Logging
+
+Errors are logged in `error_log.txt` inside the output directory:
+
+```
+example.com: timeout: Timed out receiving message from renderer
+testsite.org: Unexpected error during screenshot.
+```
+
+---
+
+## Notes
+
+1. **VPN Configuration:**
+   - Ensure your `.ovpn` files are configured correctly and can connect without additional inputs.
+   - The script selects a random VPN configuration from the provided directory for each VPN connection.
+   - Running OpenVPN may require `sudo` privileges. Adjust your environment accordingly.
+
+2. **Chromedriver:**
+   - Download and configure `chromedriver` compatible with your Chrome version from the [official ChromeDriver repository](https://chromedriver.chromium.org/downloads).
+   - Update the `webdriver_path` in the `config.ini` file to point to your `chromedriver` executable.
+
+3. **Permissions:**
+   - The script may require elevated permissions to manage VPN connections. Run the script with appropriate permissions.
+
+4. **Session Files:**
+   - The script creates session files named `<domain_file>_<screenshot_dir>.session` to track progress.
+   - Retry sessions are saved with the extension `.retry.session`.
+
+5. **VPN Rotation During Retry:**
+   - During retries, the script connects to a new VPN before processing each batch of failed domains, increasing the chances of successful connections.
+
+6. **Input Validation:**
+   - The script accepts only `'y'` or `'n'` as valid inputs when prompting the user. It will continue to prompt until a valid input is provided.
+   - **Graceful handling of `Ctrl+C` during input prompts:** If you press **Ctrl+C** during an input prompt, the script will handle it gracefully and exit without errors.
+
+---
+
+## Troubleshooting
+
+- **VPN Connection Issues:**
+  - If the script fails to connect to the VPN, ensure that your VPN configurations are correct and that you have network connectivity.
+  - Check that OpenVPN is installed and accessible from the command line.
+
+- **Selenium Errors:**
+  - Ensure that `chromedriver` is installed and matches the version of your Chrome browser.
+  - Verify that the `webdriver_path` in `config.ini` is correct.
+
+- **Permission Denied Errors:**
+  - Running VPN connections and Selenium may require elevated permissions.
+  - Consider running the script with `sudo` if necessary, but be cautious with permissions.
+
