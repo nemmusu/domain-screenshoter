@@ -194,10 +194,6 @@ testsite.org: Unexpected error during screenshot.
 5. **VPN Rotation During Retry:**
    - During retries, the script connects to a new VPN before processing each batch of failed domains, increasing the chances of successful connections.
 
-6. **Input Validation:**
-   - The script accepts only `'y'` or `'n'` as valid inputs when prompting the user. It will continue to prompt until a valid input is provided.
-   - **Graceful handling of `Ctrl+C` during input prompts:** If you press **Ctrl+C** during an input prompt, the script will handle it gracefully and exit without errors.
-
 ---
 
 ## Troubleshooting
