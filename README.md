@@ -171,6 +171,7 @@ Retry? (Enter 'y' to retry, 'n' to skip retry):
 ```
 Retrying domains / total: 100%|███████████████████████████████████████████████████████████████████████████| 50/50 [01:45<00:00,  2.00s/it]
 Screenshots taken / total:  80%|████████████████████████████████████████████████████████                   | 40/50 [01:45<00:26,  2.60s/it]
+Requests made / total:     100%|█████████████████████████████████████████████████████████████████████████| 50/50 [01:40<00:00,  2.00s/dom]
 Connected to IP #1: 192.0.2.3
 
 Retry completed. 50 domains processed, 40 screenshots taken, 10 domains still failed.
