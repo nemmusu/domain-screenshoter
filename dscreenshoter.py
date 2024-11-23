@@ -10,7 +10,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import TimeoutException, WebDriverException
-from concurrent.futures import ThreadPoolExecutor, as_completed, FIRST_COMPLETED, wait
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import subprocess
 import logging
 import json
@@ -24,20 +24,6 @@ def banner():
      \__,_|___/\___|_|  \___|\___|_| |_|___/_| |_|\___/ \__\___|_|   
                                                                      
                                                                      """)
-
-def parse_error_log(log_file, target_error="timeout: Timed out receiving message from renderer"):
-    if not os.path.exists(log_file):
-        return []
-    failed_domains = set()
-    try:
-        with open(log_file, "r") as f:
-            for line in f:
-                if target_error in line:
-                    domain = line.split(":")[0].strip()
-                    failed_domains.add(domain)
-    except Exception:
-        logging.getLogger('general_errors').error(f"Failed to parse error log '{log_file}'.")
-    return list(failed_domains)
 
 def save_retry_session(retry_file, processed_domains, remaining_domains, screenshots_done, failed_domains):
     session_dir = ensure_session_dir()
@@ -260,23 +246,6 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
                 os.remove(retry_file)
             return False
 
-def validate_session(domains, screenshot_dir, session):
-    processed_domains = session.get("processed_domains", [])
-    screenshots_done = session.get("screenshots_done", 0)
-    failed_domains = session.get("failed_domains", [])
-
-    processed_domains = list(set(processed_domains))
-    failed_domains = set(failed_domains)
-
-    domains_set = set(domains)
-    processed_domains = list(domains_set.intersection(processed_domains))
-    failed_domains = domains_set.intersection(failed_domains)
-
-    actual_screenshots = len([f for f in os.listdir(screenshot_dir) if f.endswith(".png")])
-    screenshots_done = actual_screenshots
-
-    return processed_domains, screenshots_done, failed_domains
-
 def setup_logging(output_folder):
     error_log_file = os.path.join(output_folder, "error_log.txt")
     ds_error_log_file = os.path.join(output_folder, "ds_errors.txt")
@@ -381,15 +350,6 @@ def ensure_session_dir():
     os.makedirs(session_dir, exist_ok=True)
     return session_dir
 
-def save_on_interrupt(session_file, processed_domains, remaining_domains, screenshots_done, failed_domains, retry=False):
-    try:
-        if retry:
-            save_retry_session(session_file, processed_domains, remaining_domains, screenshots_done, list(failed_domains))
-        else:
-            save_session(session_file, processed_domains, remaining_domains, screenshots_done, failed_domains)
-    except Exception as e:
-        logging.getLogger('general_errors').error(f"Failed to save session on interrupt: {str(e)}")
-
 def save_session(session_file, processed_domains, remaining_domains, screenshots_done, failed_domains):
     session_dir = ensure_session_dir()
     session_path = os.path.join(session_dir, session_file)
@@ -419,16 +379,11 @@ def load_session(session_file):
 def process_domains(domains, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, session_file, delay):
     vpn_process = None
 
-    domains = list(set(domains))
-
-    processed_domains = []
-    screenshots_done = 0
-    failed_domains = set()
-    log_file = os.path.join(output_folder, "error_log.txt")
-
     session = load_session(session_file)
     if session:
-        processed_domains, screenshots_done, failed_domains = validate_session(domains, output_folder, session)
+        processed_domains = session.get("processed_domains", [])
+        screenshots_done = session.get("screenshots_done", 0)
+        failed_domains = set(session.get("failed_domains", []))
         print(f"Session found for file '{os.path.basename(session_file)}' with {len(processed_domains)}/{len(domains)} domains processed and {screenshots_done} screenshots completed.")
         while True:
             try:
@@ -442,6 +397,7 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                     except Exception:
                         logging.getLogger('general_errors').error(f"Failed to remove session file '{session_file}'.")
                     processed_domains, screenshots_done, failed_domains = [], 0, set()
+                    domains = list(set(domains))
                     break
                 else:
                     print("Invalid input. Please enter 'y' or 'n'.")
@@ -451,14 +407,16 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
     else:
         print(f"No session found for file '{os.path.basename(session_file)}'. Starting new session.")
         processed_domains, screenshots_done, failed_domains = [], 0, set()
+        domains = list(set(domains))
 
+    total_domains = len(domains)
     remaining_domains = [d for d in domains if d not in processed_domains and d not in failed_domains]
 
     if remaining_domains:
-        progress_bar_domains = tqdm(total=len(domains), desc="Domains processed / total", position=0, unit="dom")
-        progress_bar_screenshots = tqdm(total=len(domains), desc="Screenshots taken / total", position=1, unit="dom")
+        progress_bar_domains = tqdm(total=total_domains, desc="Domains processed / total", position=0, unit="dom")
+        progress_bar_screenshots = tqdm(total=total_domains, desc="Screenshots taken / total", position=1, unit="dom")
         progress_bar_requests = tqdm(total=max_requests, desc="Requests made / total", position=2, unit="dom")
-        progress_bar_domains.update(len(processed_domains) + len(failed_domains))
+        progress_bar_domains.update(len(processed_domains))
         progress_bar_screenshots.update(screenshots_done)
 
         ip_counter = 0
