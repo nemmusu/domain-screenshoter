@@ -1,6 +1,8 @@
 import os
 from PIL import Image
 import imagehash
+from concurrent.futures import ThreadPoolExecutor
+from tqdm import tqdm
 
 def generate_report(output_folder, columns=4):
     report_path = os.path.join(output_folder, "report.html")
@@ -9,15 +11,22 @@ def generate_report(output_folder, columns=4):
         print("No screenshots found in the specified directory.")
         return
 
-    # Pre-calculating hashes for all images
-    image_hashes = {}
-    for img in image_files:
+    def compute_hash(img):
+        img_path = os.path.join(output_folder, img)
         try:
-            img_path = os.path.join(output_folder, img)
             img_hash = str(imagehash.average_hash(Image.open(img_path)))
-            image_hashes[img] = img_hash
+            return img, img_hash
         except Exception as e:
             print(f"Failed to process image {img}: {e}")
+            return img, None
+
+    image_hashes = {}
+    with ThreadPoolExecutor() as executor:
+        results = list(tqdm(executor.map(compute_hash, image_files), total=len(image_files), desc="Processing images"))
+
+    for img, img_hash in results:
+        if img_hash is not None:
+            image_hashes[img] = img_hash
 
     html_content = f"""
     <!DOCTYPE html>
