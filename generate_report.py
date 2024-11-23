@@ -233,106 +233,110 @@ def generate_report(output_folder, columns=4):
             <button onclick="excludeImages()">Exclude all matching images</button>
         </div>
         <script>
-            let contextMenu = document.getElementById("context-menu");
-            let selectedHash = "";
-            let filters = new Set();
-            let filterInfo = document.getElementById("filter-info");
-            let modal = document.getElementById("modal");
-            let modalImage = document.getElementById("modal-image");
-            let modalLink = document.getElementById("modal-link");
-            let images = Array.from(document.querySelectorAll(".container img"));
-            let filteredImages = images;
-            let currentIndex = -1;
+          let contextMenu = document.getElementById("context-menu");
+let selectedHash = "";
+let filters = new Set();
+let filterInfo = document.getElementById("filter-info");
+let modal = document.getElementById("modal");
+let modalImage = document.getElementById("modal-image");
+let modalLink = document.getElementById("modal-link");
+let images = Array.from(document.querySelectorAll(".container img"));
+let filteredImages = images;
+let currentIndex = -1;
 
-            function openModal(index) {
-                currentIndex = index;
-                const img = filteredImages[currentIndex];
-                modal.style.display = "flex";
-                modalImage.src = img.src;
-                modalLink.href = img.nextElementSibling.href;
-                modalLink.textContent = img.nextElementSibling.href;
-            }
+function openModal(imgElement) {
+    currentIndex = filteredImages.indexOf(imgElement);
+    if (currentIndex === -1) return;
+    modal.style.display = "flex";
+    modalImage.src = imgElement.src;
+    modalLink.href = imgElement.nextElementSibling.href;
+    modalLink.textContent = imgElement.nextElementSibling.href;
+}
 
-            function closeModal() {
-                modal.style.display = "none";
-                currentIndex = -1;
-            }
+function closeModal() {
+    modal.style.display = "none";
+    currentIndex = -1;
+}
 
-            function navigate(direction) {
-                if (currentIndex === -1) return;
-                currentIndex = (currentIndex + direction + filteredImages.length) % filteredImages.length;
-                openModal(currentIndex);
-            }
+function navigate(direction) {
+    if (currentIndex === -1) return;
+    currentIndex = (currentIndex + direction + filteredImages.length) % filteredImages.length;
+    const imgElement = filteredImages[currentIndex];
+    modalImage.src = imgElement.src;
+    modalLink.href = imgElement.nextElementSibling.href;
+    modalLink.textContent = imgElement.nextElementSibling.href;
+}
 
-            document.addEventListener("keydown", function(event) {
-                if (modal.style.display === "flex") {
-                    if (event.key === "ArrowLeft") navigate(-1);
-                    if (event.key === "ArrowRight") navigate(1);
-                    if (event.key === "Escape") closeModal();
-                }
-            });
+document.addEventListener("keydown", function(event) {
+    if (modal.style.display === "flex") {
+        if (event.key === "ArrowLeft") navigate(-1);
+        if (event.key === "ArrowRight") navigate(1);
+        if (event.key === "Escape") closeModal();
+    }
+});
 
-            images.forEach((img, index) => {
-                img.addEventListener("click", () => openModal(index));
-            });
+images.forEach((img) => {
+    img.addEventListener("click", () => openModal(img));
+});
 
-            function excludeImages() {
-                const images = document.querySelectorAll(`img[data-hash='${selectedHash}']`);
-                images.forEach(img => img.parentElement.classList.add("hidden"));
-                if (!filters.has(selectedHash)) {
-                    filters.add(selectedHash);
-                    addFilterInfo(selectedHash, images[0].src);
-                }
-                contextMenu.style.display = "none";
-                updateFilteredImages();
-            }
+function excludeImages() {
+    const imagesToHide = document.querySelectorAll(`img[data-hash='${selectedHash}']`);
+    imagesToHide.forEach(img => img.parentElement.classList.add("hidden"));
+    if (!filters.has(selectedHash)) {
+        filters.add(selectedHash);
+        addFilterInfo(selectedHash, imagesToHide[0].src);
+    }
+    contextMenu.style.display = "none";
+    updateFilteredImages();
+}
 
-            function addFilterInfo(hash, src) {
-                filterInfo.classList.remove("hidden");
-                const filterItem = document.createElement("div");
-                filterItem.className = "filter-item";
-                filterItem.dataset.hash = hash;
-                filterItem.innerHTML = `
-                    <img src="${src}" alt="Filter">
-                    <button onclick="removeFilter('${hash}')">X</button>
-                `;
-                filterInfo.appendChild(filterItem);
-            }
+function addFilterInfo(hash, src) {
+    filterInfo.classList.remove("hidden");
+    const filterItem = document.createElement("div");
+    filterItem.className = "filter-item";
+    filterItem.dataset.hash = hash;
+    filterItem.innerHTML = `
+        <img src="${src}" alt="Filter">
+        <button onclick="removeFilter('${hash}')">X</button>
+    `;
+    filterInfo.appendChild(filterItem);
+}
 
-            function removeFilter(hash) {
-                filters.delete(hash);
-                document.querySelectorAll(`.filter-item[data-hash='${hash}']`).forEach(item => item.remove());
-                document.querySelectorAll(`.hidden img[data-hash='${hash}']`).forEach(img => img.parentElement.classList.remove("hidden"));
-                if (filters.size === 0) {
-                    filterInfo.classList.add("hidden");
-                }
-                updateFilteredImages();
-            }
+function removeFilter(hash) {
+    filters.delete(hash);
+    document.querySelectorAll(`.filter-item[data-hash='${hash}']`).forEach(item => item.remove());
+    document.querySelectorAll(`.hidden img[data-hash='${hash}']`).forEach(img => img.parentElement.classList.remove("hidden"));
+    if (filters.size === 0) {
+        filterInfo.classList.add("hidden");
+    }
+    updateFilteredImages();
+}
 
-            function updateFilteredImages() {
-                filteredImages = filters.size
-                    ? images.filter(img => !img.parentElement.classList.contains("hidden"))
-                    : images;
-            }
+function updateFilteredImages() {
+    filteredImages = filters.size
+        ? images.filter(img => !img.parentElement.classList.contains("hidden"))
+        : images;
+}
 
-            document.addEventListener("contextmenu", function(event) {
-                let target = event.target;
-                if (target.tagName === "IMG") {
-                    event.preventDefault();
-                    selectedHash = target.getAttribute("data-hash");
-                    contextMenu.style.top = `${event.pageY}px`;
-                    contextMenu.style.left = `${event.pageX}px`;
-                    contextMenu.style.display = "flex";
-                }
-            });
+document.addEventListener("contextmenu", function(event) {
+    let target = event.target;
+    if (target.tagName === "IMG") {
+        event.preventDefault();
+        selectedHash = target.getAttribute("data-hash");
+        contextMenu.style.top = `${event.pageY}px`;
+        contextMenu.style.left = `${event.pageX}px`;
+        contextMenu.style.display = "flex";
+    }
+});
 
-            document.addEventListener("click", function(event) {
-                if (!event.target.closest(".context-menu")) {
-                    contextMenu.style.display = "none";
-                }
-            });
+document.addEventListener("click", function(event) {
+    if (!event.target.closest(".context-menu")) {
+        contextMenu.style.display = "none";
+    }
+});
 
-            updateFilteredImages();
+updateFilteredImages();
+
         </script>
     </body>
     </html>
