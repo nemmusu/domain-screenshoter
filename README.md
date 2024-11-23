@@ -69,7 +69,7 @@ python dscreenshoter.py --vpn-dir <VPN_CONFIG_DIR> -d <DOMAIN_LIST_FILE> -s <OUT
 - `-s`, `--screenshot-dir`: Directory to save the screenshots.
 - `-n`, `--max-requests`: Maximum number of requests to process before changing VPN.
 - `-t`, `--threads`: Number of threads to use for concurrent processing.
-- `--timeout`: Timeout (in seconds) for page loading in Selenium.
+- `-to`, `--timeout`: Timeout (in seconds) for page loading in Selenium.
 - `-de`, `--delay`: Delay (in seconds) before connecting to a new VPN after disconnecting the current one. Defaults to 0.
 
 ---
