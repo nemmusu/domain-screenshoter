@@ -104,8 +104,8 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
         total_domains = len(remaining_domains)
         print(f"{len(remaining_domains)} domains failed due to timeout errors. Retrying with IP rotation.")
 
-    progress_bar_domains = tqdm(total=total_domains, desc="Retrying domains / total", position=0)
-    progress_bar_screenshots = tqdm(total=total_domains, desc="Screenshots taken / total", position=1)
+    progress_bar_domains = tqdm(total=total_domains, desc="Retrying domains / total", position=0, unit="dom")
+    progress_bar_screenshots = tqdm(total=total_domains, desc="Screenshots taken / total", position=1, unit="dom")
     progress_bar_domains.update(len(processed_domains))
     progress_bar_screenshots.update(screenshots_done)
 
@@ -395,9 +395,9 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
         remaining_domains = domains
 
     if remaining_domains:
-        progress_bar_domains = tqdm(total=len(domains), desc="Domains processed / total", position=0)
-        progress_bar_screenshots = tqdm(total=len(domains), desc="Screenshots taken / total", position=1)
-        progress_bar_requests = tqdm(total=max_requests, desc="Requests made / total", position=2)
+        progress_bar_domains = tqdm(total=len(domains), desc="Domains processed / total", position=0, unit="dom")
+        progress_bar_screenshots = tqdm(total=len(domains), desc="Screenshots taken / total", position=1, unit="dom")
+        progress_bar_requests = tqdm(total=max_requests, desc="Requests made / total", position=2, unit="dom")
         progress_bar_domains.update(len(processed_domains))
         progress_bar_screenshots.update(screenshots_done)
 
