@@ -25,6 +25,8 @@ This tool automates taking screenshots of a list of domains while routing reques
 - `tqdm` (for progress bars)
 - `selenium` (for web automation)
 - `chromedriver` compatible with your Chrome version
+- `pillow` (for image processing)
+- `imagehash` (for generating unique hashes for images)
 
 ---
 
@@ -69,6 +71,41 @@ python dscreenshoter.py --vpn-dir <VPN_CONFIG_DIR> -d <DOMAIN_LIST_FILE> -s <OUT
 - `-t`, `--threads`: Number of threads to use for concurrent processing.
 - `--timeout`: Timeout (in seconds) for page loading in Selenium.
 - `-de`, `--delay`: Delay (in seconds) before connecting to a new VPN after disconnecting the current one. Defaults to 0.
+
+---
+
+## HTML Report Generator
+
+### How to Use the Report Generator
+
+After taking screenshots, you can generate an interactive HTML report of the screenshots saved in your output directory. This report allows you to browse, filter, and view screenshots interactively.
+
+Run the following command:
+
+```bash
+python generate_report.py -o <OUTPUT_DIR>
+```
+
+- `-o`, `--output-folder`: The directory containing the screenshots for which you want to generate the report.
+
+### Report Features
+
+- **Interactive Gallery**: Displays all screenshots in a grid layout.
+- **Image Filtering**: Allows filtering of screenshots based on unique hashes.
+- **Detailed View**: Click on any screenshot to open a modal for navigation.
+- **Keyboard Navigation**: Use arrow keys to navigate through images and `Esc` to close the modal.
+- **Aspect Ratio Maintenance**: Ensures that screenshots retain their original proportions.
+- **Context Menu**: Right-click on a screenshot to exclude similar ones from the gallery dynamically.
+
+### Example
+
+Generate a report for the screenshots stored in the `screenshots` directory:
+
+```bash
+python generate_report.py -o screenshots
+```
+
+This will create an `report.html` file inside the `screenshots` directory. Open it in any web browser to explore the captured screenshots.
 
 ---
 
@@ -149,6 +186,7 @@ Retry session found with 20 domains to process.
 Processed 30/50 domains, 25 screenshots taken.
 Continue? (Enter 'y' to continue, 'n' to start a new session):
 ```
+
 
 ### Example 4: Graceful Interrupt Handling
 
