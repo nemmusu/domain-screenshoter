@@ -17,13 +17,13 @@ import json
 
 def banner():
     print("""     _                                  _           _            
-    | |                                | |         | |           
-  __| |___  ___ _ __ ___  ___ _ __  ___| |__   ___ | |_ ___ _ __ 
- / _ / __|/ __| '__/ _ \/ _ \ '_ \/ __| '_ \ / _ \| __/ _ \ '__|
-| (_| \__ \ (__| | |  __/  __/ | | \__ \ | | | (_) | ||  __/ |   
- \__,_|___/\___|_|  \___|\___|_| |_|___/_| |_|\___/ \__\___|_|   
-                                                                 
-                                                                 """)
+        | |                                | |         | |           
+      __| |___  ___ _ __ ___  ___ _ __  ___| |__   ___ | |_ ___ _ __ 
+     / _` / __|/ __| '__/ _ \/ _ \ '_ \/ __| '_ \ / _ \| __/ _ \ '__|
+    | (_| \__ \ (__| | |  __/  __/ | | \__ \ | | | (_) | ||  __/ |   
+     \__,_|___/\___|_|  \___|\___|_| |_|___/_| |_|\___/ \__\___|_|   
+                                                                     
+                                                                     """)
 
 def parse_error_log(log_file, target_error="timeout: Timed out receiving message from renderer"):
     if not os.path.exists(log_file):
@@ -97,7 +97,7 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
         if not session or "failed_domains" not in session or not session["failed_domains"]:
             print("No failed domains to retry.")
             return
-        remaining_domains = session["failed_domains"]
+        remaining_domains = list(set(session["failed_domains"]))
         processed_domains = []
         screenshots_done = 0
         failed_domains_set = set()
@@ -106,6 +106,7 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
 
     progress_bar_domains = tqdm(total=total_domains, desc="Retrying domains / total", position=0, unit="dom")
     progress_bar_screenshots = tqdm(total=total_domains, desc="Screenshots taken / total", position=1, unit="dom")
+    progress_bar_requests = tqdm(total=max_requests, desc="Requests made / total", position=2, unit="dom")
     progress_bar_domains.update(len(processed_domains))
     progress_bar_screenshots.update(screenshots_done)
 
@@ -146,6 +147,9 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
                 sys.exit(1)
 
             batch_domains = remaining_domains[i : i + max_requests]
+            progress_bar_requests.reset()
+            completed_requests = 0
+
             futures = {
                 executor.submit(take_screenshot, domain, output_folder, timeout, webdriver_path): domain
                 for domain in batch_domains.copy()
@@ -158,6 +162,8 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
                         success = future.result()
                         processed_domains.append(domain)
                         progress_bar_domains.update(1)
+                        progress_bar_requests.update(1)
+                        completed_requests += 1
                         if success:
                             screenshots_done += 1
                             progress_bar_screenshots.update(1)
@@ -169,7 +175,13 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
                         failed_domains_set.add(domain)
             except KeyboardInterrupt:
                 print("\nInterrupted during retry. Saving retry session...")
-                save_retry_session(retry_file, processed_domains, remaining_domains[i:], screenshots_done, list(failed_domains_set))
+                save_retry_session(
+                    retry_file,
+                    processed_domains,
+                    remaining_domains[i + completed_requests:],
+                    screenshots_done,
+                    list(failed_domains_set)
+                )
                 if vpn_process:
                     try:
                         vpn_process.terminate()
@@ -177,6 +189,15 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
                         logging.getLogger('general_errors').error("Failed to terminate VPN process during interrupt.")
                 print(f"Retry session saved as '{retry_file}'. You can resume it later.")
                 sys.exit(0)
+            finally:
+                # Save the session after each batch
+                save_retry_session(
+                    retry_file,
+                    processed_domains,
+                    remaining_domains[i + completed_requests:],
+                    screenshots_done,
+                    list(failed_domains_set)
+                )
 
             if vpn_process:
                 try:
@@ -186,6 +207,7 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
 
     progress_bar_domains.close()
     progress_bar_screenshots.close()
+    progress_bar_requests.close()
 
     main_session = load_session(session_file)
     if main_session:
@@ -213,12 +235,20 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
 def validate_session(domains, screenshot_dir, session):
     processed_domains = session.get("processed_domains", [])
     screenshots_done = session.get("screenshots_done", 0)
-    failed_domains = set(session.get("failed_domains", []))
+    failed_domains = session.get("failed_domains", [])
+
+    # Remove duplicates from processed_domains and failed_domains
+    processed_domains = list(set(processed_domains))
+    failed_domains = set(failed_domains)
+
+    # Ensure processed_domains and failed_domains only include domains from the original list
+    domains_set = set(domains)
+    processed_domains = list(domains_set.intersection(processed_domains))
+    failed_domains = domains_set.intersection(failed_domains)
+
     actual_screenshots = len([f for f in os.listdir(screenshot_dir) if f.endswith(".png")])
     screenshots_done = actual_screenshots
-    processed_domains = list(set(processed_domains))
-    if len(processed_domains) > len(domains):
-        processed_domains = processed_domains[:len(domains)]
+
     return processed_domains, screenshots_done, failed_domains
 
 def setup_logging(output_folder):
@@ -362,6 +392,10 @@ def load_session(session_file):
 
 def process_domains(domains, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, session_file, delay):
     vpn_process = None
+
+    # Remove duplicates from domains list
+    domains = list(set(domains))
+
     processed_domains = []
     screenshots_done = 0
     failed_domains = set()
@@ -369,6 +403,7 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
 
     session = load_session(session_file)
     if session:
+        # Remove duplicates from session data and ensure consistency
         processed_domains, screenshots_done, failed_domains = validate_session(domains, output_folder, session)
         print(f"Session found for file '{os.path.basename(session_file)}' with {len(processed_domains)}/{len(domains)} domains processed and {screenshots_done} screenshots completed.")
         while True:
@@ -376,7 +411,6 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                 print("Continue? (Enter 'y' to continue, 'n' to start a new session):")
                 choice = input().strip().lower()
                 if choice == 'y':
-                    remaining_domains = [d for d in domains if d not in processed_domains]
                     break
                 elif choice == 'n':
                     try:
@@ -384,7 +418,6 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                     except Exception:
                         logging.getLogger('general_errors').error(f"Failed to remove session file '{session_file}'.")
                     processed_domains, screenshots_done, failed_domains = [], 0, set()
-                    remaining_domains = domains
                     break
                 else:
                     print("Invalid input. Please enter 'y' or 'n'.")
@@ -392,13 +425,17 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                 print("\nOperation cancelled by user.")
                 sys.exit(0)
     else:
-        remaining_domains = domains
+        print(f"No session found for file '{os.path.basename(session_file)}'. Starting new session.")
+        processed_domains, screenshots_done, failed_domains = [], 0, set()
+
+    # Recompute remaining_domains accurately
+    remaining_domains = [d for d in domains if d not in processed_domains and d not in failed_domains]
 
     if remaining_domains:
         progress_bar_domains = tqdm(total=len(domains), desc="Domains processed / total", position=0, unit="dom")
         progress_bar_screenshots = tqdm(total=len(domains), desc="Screenshots taken / total", position=1, unit="dom")
         progress_bar_requests = tqdm(total=max_requests, desc="Requests made / total", position=2, unit="dom")
-        progress_bar_domains.update(len(processed_domains))
+        progress_bar_domains.update(len(processed_domains) + len(failed_domains))
         progress_bar_screenshots.update(screenshots_done)
 
         ip_counter = 0
@@ -438,12 +475,13 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
 
                 batch_domains = remaining_domains[i : i + max_requests]
                 progress_bar_requests.reset()
+                completed_requests = 0
+                interrupted = False
+
                 futures = {
                     executor.submit(take_screenshot, domain, output_folder, timeout, webdriver_path): domain
                     for domain in batch_domains
                 }
-                completed_requests = 0
-                interrupted = False
                 try:
                     for future in as_completed(futures):
                         domain = futures[future]
@@ -464,17 +502,16 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                 except KeyboardInterrupt:
                     interrupted = True
                 finally:
-                    if interrupted or completed_requests == len(batch_domains):
-                        tqdm.write("\nSaving session due to interrupt or batch completion...")
-                        save_session(session_file, processed_domains, remaining_domains[i + completed_requests:], screenshots_done, failed_domains)
-                        if interrupted:
-                            tqdm.write(f"Operation cancelled by user. Session saved as '{session_file}'.")
-                            if vpn_process:
-                                try:
-                                    vpn_process.terminate()
-                                except Exception:
-                                    logging.getLogger('general_errors').error("Failed to terminate VPN process during interrupt.")
-                            sys.exit(0)
+                    # Save the session after each batch or interrupt
+                    save_session(session_file, processed_domains, remaining_domains[i + completed_requests:], screenshots_done, failed_domains)
+                    if interrupted:
+                        tqdm.write(f"\nOperation cancelled by user. Session saved as '{session_file}'.")
+                        if vpn_process:
+                            try:
+                                vpn_process.terminate()
+                            except Exception:
+                                logging.getLogger('general_errors').error("Failed to terminate VPN process during interrupt.")
+                        sys.exit(0)
 
                 if vpn_process:
                     try:
@@ -521,7 +558,6 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
     else:
         print("No failed domains to retry.")
 
-
 def main():
     banner()
     parser = argparse.ArgumentParser(description="Domain screenshot tool with VPN rotation.")
@@ -530,7 +566,7 @@ def main():
     parser.add_argument("-s", "--screenshot-dir", required=True, help="Folder to save screenshots.")
     parser.add_argument("-n", "--max-requests", type=int, required=True, help="Max requests before changing VPN.")
     parser.add_argument("-t", "--threads", type=int, required=True, help="Number of threads to use.")
-    parser.add_argument("--timeout", type=int, required=True, help="Page load timeout.")
+    parser.add_argument("-to", "--timeout", type=int, required=True, help="Page load timeout.")
     parser.add_argument("-de", "--delay", type=int, default=0, help="Delay in seconds before connecting to a new VPN.")
     args = parser.parse_args()
 
@@ -590,6 +626,9 @@ def main():
         print(f"Error: {error_message}")
         logging.getLogger('general_errors').error(error_message)
         sys.exit(1)
+
+    # Remove duplicates from domains list
+    domains = list(set(domains))
 
     session_file = f"{os.path.basename(args.domains)}_{os.path.basename(args.screenshot_dir)}.session"
 
