@@ -40,16 +40,12 @@ def parse_error_log(log_file, target_error="timeout: Timed out receiving message
     return list(failed_domains)
 
 def save_retry_session(retry_file, processed_domains, remaining_domains, screenshots_done, failed_domains):
-<<<<<<< HEAD
     session_dir = ensure_session_dir()
     retry_path = os.path.join(session_dir, retry_file)
-=======
->>>>>>> e07a47027bcbad17743b28b4748fc326f6512ada
     retry_data = {
         "processed_domains": processed_domains,
         "remaining_domains": remaining_domains,
         "screenshots_done": screenshots_done,
-<<<<<<< HEAD
         "failed_domains": failed_domains,
     }
     try:
@@ -67,24 +63,6 @@ def load_retry_session(retry_file):
                 return json.load(f)
         except Exception as e:
             logging.getLogger('general_errors').error(f"Failed to load retry session from '{retry_path}': {str(e)}")
-=======
-        "failed_domains": failed_domains
-    }
-    try:
-        with open(retry_file, "w") as f:
-            json.dump(retry_data, f)
-    except Exception:
-        logging.getLogger('general_errors').error(f"Failed to save retry session to '{retry_file}'.")
-
-def load_retry_session(retry_file):
-    if os.path.exists(retry_file):
-        try:
-            with open(retry_file, "r") as f:
-                return json.load(f)
-        except Exception:
-            logging.getLogger('general_errors').error(f"Failed to load retry session from '{retry_file}'.")
-            return {}
->>>>>>> e07a47027bcbad17743b28b4748fc326f6512ada
     return {}
 
 def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, delay):
@@ -342,7 +320,6 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path):
     finally:
         driver.quit()
 
-<<<<<<< HEAD
 def ensure_session_dir():
     session_dir = "session"
     os.makedirs(session_dir, exist_ok=True)
@@ -360,14 +337,10 @@ def save_on_interrupt(session_file, processed_domains, remaining_domains, screen
 def save_session(session_file, processed_domains, remaining_domains, screenshots_done, failed_domains):
     session_dir = ensure_session_dir()
     session_path = os.path.join(session_dir, session_file)
-=======
-def save_session(session_file, processed_domains, remaining_domains, screenshots_done, failed_domains):
->>>>>>> e07a47027bcbad17743b28b4748fc326f6512ada
     session_data = {
         "processed_domains": processed_domains,
         "remaining_domains": remaining_domains,
         "screenshots_done": screenshots_done,
-<<<<<<< HEAD
         "failed_domains": list(failed_domains),
     }
     try:
@@ -385,24 +358,6 @@ def load_session(session_file):
                 return json.load(f)
         except Exception as e:
             logging.getLogger('general_errors').error(f"Failed to load session from '{session_path}': {str(e)}")
-=======
-        "failed_domains": list(failed_domains)
-    }
-    try:
-        with open(session_file, "w") as f:
-            json.dump(session_data, f)
-    except Exception:
-        logging.getLogger('general_errors').error(f"Failed to save session to '{session_file}'.")
-
-def load_session(session_file):
-    if os.path.exists(session_file):
-        try:
-            with open(session_file, "r") as f:
-                return json.load(f)
-        except Exception:
-            logging.getLogger('general_errors').error(f"Failed to load session from '{session_file}'.")
-            return {}
->>>>>>> e07a47027bcbad17743b28b4748fc326f6512ada
     return {}
 
 def process_domains(domains, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, session_file, delay):
@@ -425,11 +380,7 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                     break
                 elif choice == 'n':
                     try:
-<<<<<<< HEAD
                         os.remove(os.path.join("session", session_file))
-=======
-                        os.remove(session_file)
->>>>>>> e07a47027bcbad17743b28b4748fc326f6512ada
                     except Exception:
                         logging.getLogger('general_errors').error(f"Failed to remove session file '{session_file}'.")
                     processed_domains, screenshots_done, failed_domains = [], 0, set()
@@ -511,7 +462,6 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                             logging.getLogger('domain_errors').error(f"{domain}: Unexpected error during processing.")
                             failed_domains.add(domain)
                 except KeyboardInterrupt:
-<<<<<<< HEAD
                     interrupted = True
                 finally:
                     if interrupted or completed_requests == len(batch_domains):
@@ -525,43 +475,6 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                                 except Exception:
                                     logging.getLogger('general_errors').error("Failed to terminate VPN process during interrupt.")
                             sys.exit(0)
-=======
-                    tqdm.write("\nInterrupted. Cancelling pending tasks...")
-                    interrupted = True
-                    for future in futures:
-                        if not future.done():
-                            future.cancel()
-                    tqdm.write("Waiting for running tasks to finish...")
-                    wait(futures.keys(), return_when=FIRST_COMPLETED)
-                    for future in futures:
-                        domain = futures[future]
-                        if future.done():
-                            try:
-                                success = future.result()
-                                completed_requests += 1
-                                progress_bar_requests.update(1)
-                                progress_bar_domains.update(1)
-                                processed_domains.append(domain)
-                                if success:
-                                    screenshots_done += 1
-                                    progress_bar_screenshots.update(1)
-                                else:
-                                    failed_domains.add(domain)
-                            except Exception:
-                                logging.getLogger('domain_errors').error(f"{domain}: Unexpected error during processing.")
-                                failed_domains.add(domain)
-                    remaining = remaining_domains[i + completed_requests:]
-                    save_session(session_file, processed_domains, remaining, screenshots_done, failed_domains)
-                    if vpn_process:
-                        try:
-                            vpn_process.terminate()
-                        except Exception:
-                            logging.getLogger('general_errors').error("Failed to terminate VPN process during interrupt.")
-                    print(f"\nOperation cancelled by user. Session saved as '{session_file}'.")
-                    sys.exit(0)
-                if interrupted:
-                    break
->>>>>>> e07a47027bcbad17743b28b4748fc326f6512ada
 
                 if vpn_process:
                     try:
@@ -607,10 +520,7 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                 sys.exit(0)
     else:
         print("No failed domains to retry.")
-<<<<<<< HEAD
 
-=======
->>>>>>> e07a47027bcbad17743b28b4748fc326f6512ada
 
 def main():
     banner()
