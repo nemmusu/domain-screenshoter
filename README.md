@@ -44,7 +44,7 @@ This tool automates taking screenshots of a list of domains while routing reques
    ```
 
 3. **Configure `chromedriver`:**
-   - Download the appropriate version of `chromedriver` from the [official ChromeDriver repository](https://chromedriver.chromium.org/downloads) that matches your installed Chrome browser version.
+   - Download the appropriate version of `chromedriver` from the [official ChromeDriver repository](https://chromedriver.storage.googleapis.com/index.html) that matches your installed Chrome browser version.
    - Place the `chromedriver` executable in a directory of your choice.
    - Update the path to `chromedriver` in the `config.ini` file:
      ```ini
