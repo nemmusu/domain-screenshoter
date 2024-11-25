@@ -2,6 +2,7 @@
 # Domain Screenshoter
 
 This tool automates taking screenshots of a list of domains while routing requests through a VPN. It manages sessions, retries on failures, and utilizes Selenium for capturing screenshots in a headless browser.
+Additionally, the tool supports generating interactive HTML reports for captured screenshots, complete with filtering and browsing capabilities.
 
 ---
 
@@ -15,6 +16,7 @@ This tool automates taking screenshots of a list of domains while routing reques
 - **Retry Mechanism with VPN Rotation**: If domains fail due to specific errors (e.g., timeouts), the script offers an option to retry only those domains with VPN rotation.
 - **Delay Between VPN Changes**: Allows specifying a delay (in seconds) before connecting to a new VPN after disconnecting the current one.
 - **Graceful Interrupt Handling**: Properly handles interruptions (e.g., Ctrl+C) during execution and input prompts, saving sessions and terminating VPN connections cleanly.
+- **Report generator**: You can generate an interactive HTML report of the screenshots saved in your output directory. This report allows you to browse, filter, and view screenshots interactively.
 
 ---
 
