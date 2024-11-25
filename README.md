@@ -1,6 +1,13 @@
 
 # Domain Screenshoter
 
+         _                                  _           _            
+        | |                                | |         | |           
+      __| |___  ___ _ __ ___  ___ _ __  ___| |__   ___ | |_ ___ _ __ 
+     / _` / __|/ __| '__/ _ \/ _ \ '_ \/ __| '_ \ / _ \| __/ _ \ '__|
+    | (_| \__ \ (__| | |  __/  __/ | | \__ \ | | | (_) | ||  __/ |   
+     \__,_|___/\___|_|  \___|\___|_| |_|___/_| |_|\___/ \__\___|_|   
+
 This tool automates taking screenshots of a list of domains while routing requests through a VPN. It manages sessions, retries on failures, and utilizes Selenium for capturing screenshots in a headless browser.
 Additionally, the tool supports generating interactive HTML reports for captured screenshots, complete with filtering and browsing capabilities.
 
