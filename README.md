@@ -100,11 +100,9 @@ python generate_report.py -o <OUTPUT_DIR>
 ### Report Features
 
 - **Interactive Gallery**: Displays all screenshots in a grid layout.
-- **Image Filtering**: Allows filtering of screenshots based on unique hashes.
 - **Detailed View**: Click on any screenshot to open a modal for navigation.
 - **Keyboard Navigation**: Use arrow keys to navigate through images and `Esc` to close the modal.
-- **Aspect Ratio Maintenance**: Ensures that screenshots retain their original proportions.
-- **Context Menu**: Right-click on a screenshot to exclude similar ones from the gallery dynamically.
+- **Image Filtering**: Right-click on a screenshot to exclude similar ones from the gallery dynamically.
 
 ### Example
 
