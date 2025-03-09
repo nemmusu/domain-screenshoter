@@ -8,7 +8,8 @@
      \__,_|___/\___|_|  \___|\___|_| |_|___/_| |_|\___/ \__\___|_|   
                                                                      
                                                                      
-This tool automates taking screenshots of a list of domains while routing requests through a VPN. It supports both NordVPN and OpenVPN, manages sessions, retries failed requests, and utilizes Selenium for capturing screenshots in a headless browser.
+This tool automates taking screenshots of a list of domains while routing requests through a VPN. It manages sessions, retries on failures, and utilizes Selenium for capturing screenshots in a headless browser.
+Additionally, the tool supports generating **interactive HTML reports** for captured screenshots, complete with **navigation, filtering, and exclusion of duplicate images**.
 
 ---
 
