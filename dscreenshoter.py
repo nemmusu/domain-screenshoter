@@ -183,27 +183,36 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path):
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    
     try:
         service = Service(webdriver_path)
         driver = webdriver.Chrome(service=service, options=options)
     except Exception:
         logging.getLogger('general_errors').error(f"{domain}: WebDriver initialization failed.")
         return False
+
+    success = False
     try:
-        url = f"http://{domain}"
-        driver.set_page_load_timeout(timeout)
-        driver.get(url)
-        screenshot_path = os.path.join(output_folder, f"{domain}.png")
-        driver.save_screenshot(screenshot_path)
-        return os.path.exists(screenshot_path)
-    except (WebDriverException, TimeoutException):
-        logging.getLogger('domain_errors').error(f"{domain}: timeout: Timed out receiving message from renderer")
-        return False
-    except Exception:
-        logging.getLogger('domain_errors').error(f"{domain}: Unexpected error during screenshot.")
-        return False
+        for protocol in ["http://", "https://"]:
+            try:
+                driver.set_page_load_timeout(timeout)
+                driver.get(protocol + domain)
+                screenshot_path = os.path.join(output_folder, f"{domain}.png")
+                driver.save_screenshot(screenshot_path)
+                if os.path.exists(screenshot_path):
+                    success = True
+                    break  # Se riesce con un protocollo, esce dal ciclo
+            except TimeoutException:
+                logging.getLogger('domain_errors').error(f"{domain}: timeout: Timed out receiving message from renderer")
+            except WebDriverException:
+                logging.getLogger('domain_errors').error(f"{domain}: Failed to load {protocol}{domain}")
+            except Exception as e:
+                logging.getLogger('domain_errors').error(f"{domain}: Unexpected error during screenshot: {e}")
     finally:
         driver.quit()
+        
+    return success
+
 
 def retry_failed_domains(session_file, output_folder, max_requests, threads, timeout, webdriver_path, delay, use_nordvpn, ovpn_dir):
     retry_file = f"{os.path.basename(session_file)}.retry.session"
