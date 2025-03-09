@@ -201,7 +201,7 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path):
                 driver.save_screenshot(screenshot_path)
                 if os.path.exists(screenshot_path):
                     success = True
-                    break  # Se riesce con un protocollo, esce dal ciclo
+                    break 
             except TimeoutException:
                 logging.getLogger('domain_errors').error(f"{domain}: timeout: Timed out receiving message from renderer")
             except WebDriverException:
