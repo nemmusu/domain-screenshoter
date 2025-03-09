@@ -21,6 +21,7 @@ This tool automates taking screenshots of a list of domains while routing reques
 - **Retry Mechanism with VPN Rotation**: Retries failed domains with automatic VPN changes.
 - **Graceful Interrupt Handling**: Saves session state and terminates VPN connections safely on exit.
 - **Report Generator**: Creates an interactive HTML report of screenshots for easy browsing.
+- **Interactive Report Generator**: Generates an HTML report with navigation, filtering, and exclusion of duplicate images.
 
 ---
 
