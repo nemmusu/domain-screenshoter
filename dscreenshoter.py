@@ -183,6 +183,8 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path):
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--ignore-certificate-errors")
+    options.set_capability("acceptInsecureCerts", True)
     
     try:
         service = Service(webdriver_path)
