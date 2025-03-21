@@ -241,111 +241,108 @@ def generate_report(output_folder, columns=4):
         <div class="context-menu" id="context-menu">
             <button onclick="excludeImages()">Exclude all matching images</button>
         </div>
-        <script>
-            let contextMenu = document.getElementById("context-menu");
-            let selectedHash = "";
-            let filters = new Set();
-            let filterInfo = document.getElementById("filter-info");
-            let modal = document.getElementById("modal");
-            let modalImage = document.getElementById("modal-image");
-            let modalLink = document.getElementById("modal-link");
-            let images = Array.from(document.querySelectorAll(".container img"));
-            let filteredImages = images;
-            let currentIndex = -1;
+  <script>
+         let contextMenu = document.getElementById("context-menu");
+let selectedHash = "";
+let filters = new Set();
+let filterInfo = document.getElementById("filter-info");
+let modal = document.getElementById("modal");
+let modalImage = document.getElementById("modal-image");
+let modalLink = document.getElementById("modal-link");
+let currentIndex = -1;
 
-            function openModal(imgElement) {
-                currentIndex = filteredImages.indexOf(imgElement);
-                if (currentIndex === -1) return;
-                modal.style.display = "flex";
-                modalImage.src = imgElement.src;
-                modalLink.href = imgElement.nextElementSibling.href;
-                modalLink.textContent = imgElement.nextElementSibling.href;
-            }
+function getVisibleImages() {
+    return Array.from(document.querySelectorAll(".container div:not(.hidden) img"));
+}
 
-            function closeModal() {
-                modal.style.display = "none";
-                currentIndex = -1;
-            }
+function openModal(clickedImg) {
+    const visibleImages = getVisibleImages();
+    currentIndex = visibleImages.findIndex(img => img === clickedImg);
+    if (currentIndex === -1) return;
+    showModalImage(currentIndex);
+    modal.style.display = "flex";
+}
 
-            function navigate(direction) {
-                if (currentIndex === -1) return;
-                currentIndex = (currentIndex + direction + filteredImages.length) % filteredImages.length;
-                const imgElement = filteredImages[currentIndex];
-                modalImage.src = imgElement.src;
-                modalLink.href = imgElement.nextElementSibling.href;
-                modalLink.textContent = imgElement.nextElementSibling.href;
-            }
+function closeModal() {
+    modal.style.display = "none";
+    currentIndex = -1;
+}
 
-            document.addEventListener("keydown", function(event) {
-                if (modal.style.display === "flex") {
-                    if (event.key === "ArrowLeft") navigate(-1);
-                    if (event.key === "ArrowRight") navigate(1);
-                    if (event.key === "Escape") closeModal();
-                }
-            });
+function navigate(direction) {
+    const visibleImages = getVisibleImages();
+    if (currentIndex === -1 || visibleImages.length === 0) return;
+    currentIndex = (currentIndex + direction + visibleImages.length) % visibleImages.length;
+    showModalImage(currentIndex);
+}
 
-            images.forEach((img) => {
-                img.addEventListener("click", () => openModal(img));
-            });
+function showModalImage(index) {
+    const visibleImages = getVisibleImages();
+    const img = visibleImages[index];
+    modalImage.src = img.src;
+    modalLink.href = img.nextElementSibling.href;
+    modalLink.textContent = img.nextElementSibling.href;
+}
 
-            function excludeImages() {
-                const imagesToHide = document.querySelectorAll(`img[data-hash='${selectedHash}']`);
-                imagesToHide.forEach(img => img.parentElement.classList.add("hidden"));
-                if (!filters.has(selectedHash)) {
-                    filters.add(selectedHash);
-                    addFilterInfo(selectedHash, imagesToHide[0].src);
-                }
-                contextMenu.style.display = "none";
-                updateFilteredImages();
-            }
+function excludeImages() {
+    const imagesToHide = document.querySelectorAll(`img[data-hash='${selectedHash}']`);
+    imagesToHide.forEach(img => img.parentElement.classList.add("hidden"));
+    if (!filters.has(selectedHash)) {
+        filters.add(selectedHash);
+        addFilterInfo(selectedHash, imagesToHide[0].src);
+    }
+    contextMenu.style.display = "none";
+}
 
-            function addFilterInfo(hash, src) {
-                filterInfo.classList.remove("hidden");
-                const filterItem = document.createElement("div");
-                filterItem.className = "filter-item";
-                filterItem.dataset.hash = hash;
-                filterItem.innerHTML = `
-                    <img src="${src}" alt="Filter">
-                    <button onclick="removeFilter('${hash}')">X</button>
-                `;
-                filterInfo.appendChild(filterItem);
-            }
+function addFilterInfo(hash, src) {
+    filterInfo.classList.remove("hidden");
+    const filterItem = document.createElement("div");
+    filterItem.className = "filter-item";
+    filterItem.dataset.hash = hash;
+    filterItem.innerHTML = `
+        <img src="${src}" alt="Filter">
+        <button onclick="removeFilter('${hash}')">X</button>
+    `;
+    filterInfo.appendChild(filterItem);
+}
 
-            function removeFilter(hash) {
-                filters.delete(hash);
-                document.querySelectorAll(`.filter-item[data-hash='${hash}']`).forEach(item => item.remove());
-                document.querySelectorAll(`.hidden img[data-hash='${hash}']`).forEach(img => img.parentElement.classList.remove("hidden"));
-                if (filters.size === 0) {
-                    filterInfo.classList.add("hidden");
-                }
-                updateFilteredImages();
-            }
+function removeFilter(hash) {
+    filters.delete(hash);
+    document.querySelectorAll(`.filter-item[data-hash='${hash}']`).forEach(item => item.remove());
+    document.querySelectorAll(`.hidden img[data-hash='${hash}']`).forEach(img => img.parentElement.classList.remove("hidden"));
+    if (filters.size === 0) {
+        filterInfo.classList.add("hidden");
+    }
+}
 
-            function updateFilteredImages() {
-                filteredImages = filters.size
-                    ? images.filter(img => !img.parentElement.classList.contains("hidden"))
-                    : images;
-            }
+document.addEventListener("keydown", function(event) {
+    if (modal.style.display === "flex") {
+        if (event.key === "ArrowLeft") navigate(-1);
+        if (event.key === "ArrowRight") navigate(1);
+        if (event.key === "Escape") closeModal();
+    }
+});
 
-            document.addEventListener("contextmenu", function(event) {
-                let target = event.target;
-                if (target.tagName === "IMG") {
-                    event.preventDefault();
-                    selectedHash = target.getAttribute("data-hash");
-                    contextMenu.style.top = `${event.pageY}px`;
-                    contextMenu.style.left = `${event.pageX}px`;
-                    contextMenu.style.display = "flex";
-                }
-            });
+document.querySelectorAll(".container img").forEach((img) => {
+    img.addEventListener("click", () => openModal(img));
+});
 
-            document.addEventListener("click", function(event) {
-                if (!event.target.closest(".context-menu")) {
-                    contextMenu.style.display = "none";
-                }
-            });
+document.addEventListener("contextmenu", function(event) {
+    let target = event.target;
+    if (target.tagName === "IMG") {
+        event.preventDefault();
+        selectedHash = target.getAttribute("data-hash");
+        contextMenu.style.top = `${event.pageY}px`;
+        contextMenu.style.left = `${event.pageX}px`;
+        contextMenu.style.display = "flex";
+    }
+});
 
+document.addEventListener("click", function(event) {
+    if (!event.target.closest(".context-menu")) {
+        contextMenu.style.display = "none";
+    }
+});
             updateFilteredImages();
-
         </script>
     </body>
     </html>
