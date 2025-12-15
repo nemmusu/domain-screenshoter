@@ -60,12 +60,42 @@ python dscreenshoter.py \\
 |------|-------------|
 | `-m, --vpn-mode` | VPN mode: `openvpn`, `nordvpn`, or `none` (default: `none`) |
 | `-v, --vpn-dir`  | Directory with `.ovpn` files (required if `-m openvpn`) |
-| `-d, --domains` | File containing domains, one per line |
+| `-d, --domains` | File containing targets, one per line (see Target Formats below) |
 | `-o, --output` | Directory to store screenshots and report |
 | `-t, --threads` | Number of threads for concurrent processing |
 | `-T, --timeout` | Page load timeout (in seconds) for Selenium |
 | `-n, --max-requests` | Requests per IP before switching VPN (required if using VPN) |
 | `-D, --delay` | Delay (in seconds) before re‑establishing VPN (default: 0) |
+
+**Command-line help:**
+![Help Output](img/help.png)
+
+### Target Formats
+
+The domains file accepts various target formats, one per line:
+
+- **Full URL**: `https://example.com` or `http://example.com`
+  - Used exactly as specified
+  
+- **CIDR notation**: `192.168.1.0/24` or `10.0.0.0/16`
+  - Expands to all IP addresses in the range
+  - Each IP is tried with both HTTP and HTTPS
+  
+- **IP address**: `192.168.1.1` or `8.8.8.8`
+  - Tries both HTTP and HTTPS protocols
+  
+- **Domain name**: `example.com` or `subdomain.example.com`
+  - Tries HTTPS first, then HTTP if HTTPS fails
+  - No protocol prefix needed
+
+**Example domains file:**
+```
+https://google.com
+http://example.org
+192.168.1.0/24
+8.8.8.8
+github.com
+```
 
 ## Sample Commands
 
@@ -98,21 +128,9 @@ python dscreenshoter.py \\
 
 ## Progress Bars and Sample Output
 
-During execution, the script displays progress bars using `tqdm`. A typical console output might look like:
+During execution, the script displays progress bars using `tqdm`. Here's a complete session example:
 
-```
-No session found for 'domains.txt_screenshots.session'. Starting a new one.
-Processed domains / total:   0%|          | 0/100 [00:00<?, ?dom/s]
-Screenshots OK / total:   0%|          | 0/100 [00:00<?, ?dom/s]
-Requests / batch:           0%|          | 0/50  [00:00<?, ?req/s]
-Connected with IP #1: 123.45.67.89
-Processed domains / total:  40%|####      | 40/100 [00:15<00:22,  2.66dom/s]
-...
-No failed domains. Process completed.
-Generating report...
-Processing images: 100%|██████████| 100/100 [00:02<00:00, 45.23it/s]
-Report generated at: screenshots/report.html
-```
+![CLI Screenshot](img/cli.png)
 
 You will see:
 - **Processed domains / total**: how many domains have been handled out of the total.

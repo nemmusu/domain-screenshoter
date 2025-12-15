@@ -13,7 +13,6 @@ def generate_report(output_folder, columns=4):
         print("No screenshots found in the specified directory.")
         return
     
-    # Carica le informazioni sull'ordine e gli URL
     report_info_path = os.path.join(output_folder, "report_info.json")
     successful_domains_order = []
     domain_urls = {}
@@ -44,20 +43,15 @@ def generate_report(output_folder, columns=4):
         if img_hash is not None:
             image_hashes[img] = img_hash
     
-    # Ordina le immagini secondo l'ordine di processamento
-    # Crea un mapping filename -> dominio
     filename_to_domain = {}
     for img in image_files:
         domain = os.path.splitext(img)[0]
         filename_to_domain[img] = domain
     
-    # Ordina secondo successful_domains_order, poi aggiungi quelli non in ordine
     ordered_images = []
     seen_domains = set()
     
-    # Prima aggiungi quelli nell'ordine corretto
     for domain in successful_domains_order:
-        # Trova il file immagine corrispondente
         for img in image_files:
             img_domain = os.path.splitext(img)[0]
             if img_domain == domain and img not in ordered_images:
@@ -65,12 +59,10 @@ def generate_report(output_folder, columns=4):
                 seen_domains.add(domain)
                 break
     
-    # Poi aggiungi quelli non nell'ordine
     for img in image_files:
         if img not in ordered_images:
             ordered_images.append(img)
 
-    # Crea la lista dei domini per la sidebar
     sidebar_domains = []
     for img in ordered_images:
         if img in image_hashes:
@@ -445,7 +437,6 @@ def generate_report(output_folder, columns=4):
                 <ul class="domain-list" id="domain-list">
     """
 
-    # Aggiungi i domini alla sidebar
     for idx, domain_info in enumerate(sidebar_domains):
         domain = domain_info['domain']
         domain_url = domain_info['url']
@@ -466,7 +457,6 @@ def generate_report(output_folder, columns=4):
                 <div class="gallery" id="gallery">
     """
 
-    # Aggiungi le immagini alla galleria
     for img in ordered_images:
         if img not in image_hashes:
             continue
@@ -474,9 +464,7 @@ def generate_report(output_folder, columns=4):
         domain = os.path.splitext(img)[0]
         truncated_domain = domain if len(domain) <= 20 else domain[:20] + "..."
         
-        # Usa l'URL corretto (http o https) se disponibile, altrimenti default a https
         domain_url = domain_urls.get(domain, f"https://{domain}")
-        # Se domain_url non inizia con http:// o https://, aggiungilo
         if not domain_url.startswith(("http://", "https://")):
             domain_url = f"https://{domain_url}"
         

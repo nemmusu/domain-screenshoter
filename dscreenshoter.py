@@ -183,7 +183,7 @@ def expand_cidr(cidr):
     except ValueError:
         return []
     hosts = []
-    for ip in net.hosts():  # solo indirizzi host validi
+    for ip in net.hosts():
         hosts.append(str(ip))
     return hosts
 
@@ -191,11 +191,9 @@ def expand_cidr(cidr):
 def normalize_target(raw):
     raw = raw.strip()
 
-    # Caso 1: URL con schema → ritorna esattamente quello
     if raw.startswith(("http://", "https://")):
         return [raw]
 
-    # Caso 2: CIDR → espandi tutti gli IP
     if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}/\d{1,2}$", raw):
         ips = expand_cidr(raw)
         urls = []
@@ -204,14 +202,12 @@ def normalize_target(raw):
             urls.append(f"http://{ip}")
         return urls
 
-    # Caso 3: semplice IP senza schema
     if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}$", raw):
         return [
             f"https://{raw}",
             f"http://{raw}"
         ]
 
-    # Caso 4: dominio senza schema
     return [
         f"https://{raw}",
         f"http://{raw}"
@@ -234,8 +230,6 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path):
     try:
         service = Service(webdriver_path)
         driver = webdriver.Chrome(service=service, options=options)
-
-        # Imposta una dimensione iniziale più grande per vedere più contenuto
         driver.set_window_size(1920, 1080)
 
     except Exception as e:
@@ -244,9 +238,6 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path):
 
     try:
         urls = normalize_target(domain)
-        
-        # Prova prima https, poi http (se https non funziona)
-        # Ordina per dare priorità a https
         urls_sorted = sorted(urls, key=lambda x: (0 if x.startswith('https://') else 1))
 
         for url in urls_sorted:
@@ -254,39 +245,26 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path):
                 driver.set_page_load_timeout(timeout)
                 driver.get(url)
 
-                # Ottieni le dimensioni reali della pagina per catturare l'intera pagina
                 total_width = driver.execute_script("return document.body.scrollWidth")
                 total_height = driver.execute_script("return document.body.scrollHeight")
                 
-                # Limita le dimensioni massime per evitare problemi (max 8000px di larghezza, 50000px di altezza)
                 max_width = 8000
                 max_height = 50000
                 total_width = min(total_width, max_width)
                 total_height = min(total_height, max_height)
                 
-                # Imposta la dimensione della finestra alle dimensioni della pagina
                 driver.set_window_size(total_width, total_height)
-                
-                # Aspetta un attimo per il rendering
                 time.sleep(0.5)
 
                 parsed = urlparse(url)
                 host = parsed.netloc if parsed.netloc else parsed.path
-
-                # 🔥 filename ORIGINALE
                 filename = safe_filename(host) + ".png"
                 screenshot_path = os.path.join(output_folder, filename)
-
-                # 🔥 controlla se esiste già PRIMA
                 existed_before = os.path.exists(screenshot_path)
 
                 driver.save_screenshot(screenshot_path)
 
-                # 🔥 screenshot valido = file > 5 KB
                 if os.path.exists(screenshot_path) and os.path.getsize(screenshot_path) > 5000:
-                    # se esisteva già → NON contarlo come nuovo successo
-                    # Se https funziona, non provare http
-                    # Ritorna (success, url_che_ha_funzionato)
                     return (not existed_before, url)
 
             except Exception as e:
@@ -309,8 +287,6 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path):
 def process_domains(domains, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, session_file, delay, vpn_mode):
 
     vpn_process = None
-
-    # Carica sessione
     session = load_session(session_file)
     if session:
         processed_domains_raw = session.get("processed_domains", [])
@@ -319,17 +295,13 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
         successful_domains_order = session.get("successful_domains_order", [])
         domain_urls = session.get("domain_urls", {})
         
-        # Normalizza processed_domains e failed_domains: converti URL espansi in domini originali
-        # (rimuovi http:// e https:// per domini normali)
         def normalize_domain_for_session(d):
-            """Converte URL espansi in domini originali per domini normali"""
+            """Normalize expanded URLs to original domains (remove http:// and https:// for normal domains)"""
             if d.startswith(("http://", "https://")):
                 domain = d.replace("http://", "").replace("https://", "")
-                # Se è un dominio normale (non IP), usa solo il dominio
                 if not re.match(r"^\d{1,3}(?:\.\d{1,3}){3}$", domain):
                     return domain
                 else:
-                    # È un IP, mantieni l'URL completo
                     return d
             return d
         
@@ -339,7 +311,6 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
             if normalized not in processed_domains:
                 processed_domains.append(normalized)
         
-        # Normalizza anche failed_domains
         failed_domains_normalized = set()
         for fd in failed_domains:
             normalized = normalize_domain_for_session(fd)
@@ -362,6 +333,8 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                         logging.getLogger('general_errors').error(f"Cannot remove session file '{session_file}'.")
 
                     processed_domains, screenshots_done, failed_domains = [], 0, set()
+                    successful_domains_order = []
+                    domain_urls = {}
                     domains = list(set(domains))
                     break
 
@@ -379,37 +352,26 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
         domain_urls = {}
         domains = list(set(domains))
 
-    # 🔥 MODIFICA: Non espandere domini normali in http/https
-    # Per domini normali, mantieni il dominio originale (take_screenshot gestirà http/https)
-    # Per CIDR e IP, espandi normalmente
     domains_to_process = []
     
     for d in domains:
-        # Se è un CIDR o un IP, espandi
         if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}(?:/\d{1,2})?$", d):
             expanded = normalize_target(d)
             domains_to_process.extend(expanded)
         else:
-            # Per domini normali, mantieni il dominio originale (non espandere in http/https)
-            # take_screenshot proverà prima https, poi http se necessario
             domains_to_process.append(d)
 
-    # Calcola il totale: domini normali (1 per dominio) + CIDR espansi
     total_domains = len(domains_to_process)
-
-    # Remaining → domini mai tentati (NON usare failed_domains)
     remaining_domains = [d for d in domains_to_process if d not in processed_domains]
 
 
 
-    # Se ci sono URL da processare
     if remaining_domains:
 
         progress_bar_domains = tqdm(total=total_domains, desc="Processed domains / total", position=0, unit="domain")
         progress_bar_screenshots = tqdm(total=total_domains, desc="Screenshots OK / total", position=1, unit="domain")
         progress_bar_requests = tqdm(total=max_requests if max_requests else 0, desc="Requests / batch", position=2, unit="req")
 
-        # Update progress da sessione
         progress_bar_domains.update(len(processed_domains))
         progress_bar_screenshots.update(screenshots_done)
 
@@ -419,7 +381,6 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
 
             for i in range(0, len(remaining_domains), max_requests if max_requests else len(remaining_domains)):
 
-                # --- VPN MODE ---
                 if vpn_mode != "none":
 
                     connection_attempts = 0
@@ -434,7 +395,6 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                         elif vpn_mode == "nordvpn":
                             subprocess.run(["nordvpn", "disconnect"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-                        # Connect OpenVPN
                         if vpn_mode == "openvpn":
                             vpn_process = connect_openvpn(vpn_dir)
                             if vpn_process is None:
@@ -452,7 +412,6 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                                 tqdm.write("OpenVPN connection failed. Retrying...")
                                 connection_attempts += 1
 
-                        # Connect NordVPN
                         elif vpn_mode == "nordvpn":
 
                             old_ip = get_current_ip()
@@ -481,7 +440,6 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
 
 
 
-                # Batch di lavoro
                 batch_domains = remaining_domains[i : i + (max_requests if max_requests else len(remaining_domains))]
 
                 progress_bar_requests.reset()
@@ -494,7 +452,6 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                 }
 
 
-                # --- PROCESSA FUTURE ---
                 try:
                     for future in as_completed(futures):
 
@@ -506,22 +463,18 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                             completed_requests += 1
                             progress_bar_requests.update(1)
 
-                            # 🔥 PROCESSED (adesso è corretto)
                             processed_domains.append(domain)
                             progress_bar_domains.update(1)
 
-                            if success:
-                                screenshots_done += 1
-                                progress_bar_screenshots.update(1)
-                                # Se il dominio ha successo, rimuovilo da failed_domains (se presente)
+                            if working_url:
+                                if success or domain not in successful_domains_order:
+                                    screenshots_done += 1
+                                    progress_bar_screenshots.update(1)
                                 failed_domains.discard(domain)
-                                # Salva l'ordine e l'URL che ha funzionato
                                 if domain not in successful_domains_order:
                                     successful_domains_order.append(domain)
-                                if working_url:
-                                    domain_urls[domain] = working_url
+                                domain_urls[domain] = working_url
                             else:
-                                # Aggiungi a failed_domains solo se entrambi http e https falliscono
                                 failed_domains.add(domain)
 
                         except Exception:
@@ -544,7 +497,6 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
 
 
 
-                # Disconnect VPN
                 if vpn_mode == "openvpn" and vpn_process:
                     disconnect_openvpn(vpn_process)
                     vpn_process = None
@@ -554,13 +506,11 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
 
 
 
-        # End ThreadPool
         if vpn_mode == "openvpn" and vpn_process:
             disconnect_openvpn(vpn_process)
 
         save_session(session_file, processed_domains, [], screenshots_done, failed_domains, successful_domains_order, domain_urls)
         
-        # Salva le informazioni per il report generator
         report_info_path = os.path.join(output_folder, "report_info.json")
         report_info = {
             "successful_domains_order": successful_domains_order,
@@ -576,8 +526,7 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
         progress_bar_screenshots.close()
         progress_bar_requests.close()
         
-        # Genera automaticamente il report
-        if screenshots_done > 0:
+        if screenshots_done > 0 or len(successful_domains_order) > 0:
             print("\nGenerating report...")
             try:
                 generate_report(output_folder)
@@ -587,17 +536,11 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
 
 
 
-    # Nessun remaining
     else:
         print("All domains have been processed.")
 
 
 
-    # Report
-    if failed_domains:
-        print(f"{len(failed_domains)} domains failed.")
-    else:
-        print("No failed domains.")
 
 
 def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, delay, vpn_mode):
@@ -605,7 +548,6 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
     successful_domains_order = []
     domain_urls = {}
     
-    # Carica l'ordine e gli URL dalla sessione principale se disponibili
     main_session = load_session(session_file)
     if main_session:
         successful_domains_order = main_session.get("successful_domains_order", [])
@@ -732,7 +674,6 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
                                 screenshots_done += 1
                                 progress_bar_screenshots.update(1)
                                 failed_domains_set.discard(domain)
-                                # Aggiorna l'ordine e l'URL
                                 if domain not in successful_domains_order:
                                     successful_domains_order.append(domain)
                                 if working_url:
@@ -785,7 +726,6 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
         else:
             save_session(session_file, [], [], 0, failed_domains_set, successful_domains_order, domain_urls)
         
-        # Salva le informazioni per il report generator
         report_info_path = os.path.join(output_folder, "report_info.json")
         report_info = {
             "successful_domains_order": successful_domains_order,
@@ -829,10 +769,19 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
 
 def main():
     banner()
-    parser = argparse.ArgumentParser(description="Domain screenshot tool with optional VPN rotation.")
+    parser = argparse.ArgumentParser(
+        description="Domain screenshot tool with optional VPN rotation.",
+        epilog="Target formats accepted in domains file:\n"
+               "  - Full URL: https://example.com or http://example.com\n"
+               "  - CIDR notation: 192.168.1.0/24 (expands to all IPs in range)\n"
+               "  - IP address: 192.168.1.1 (tries both http and https)\n"
+               "  - Domain name: example.com (tries https first, then http)\n"
+               "Each target should be on a separate line.",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("-m", "--vpn-mode", default="none", choices=["openvpn","nordvpn","none"], help="VPN mode: openvpn, nordvpn, or none (default: none)")
     parser.add_argument("-v", "--vpn-dir", help="Directory with .ovpn files (required if --vpn-mode=openvpn)")
-    parser.add_argument("-d", "--domains", required=True, help="File containing the domain list")
+    parser.add_argument("-d", "--domains", required=True, help="File containing the domain list (one target per line)")
     parser.add_argument("-o", "--output", required=True, dest="screenshot_dir", help="Screenshot output folder")
     parser.add_argument("-t", "--threads", type=int, required=True, help="Number of threads")
     parser.add_argument("-T", "--timeout", type=int, required=True, help="Page load timeout (in seconds)")
@@ -926,8 +875,8 @@ def main():
                         print(f"{len(failed_domains)} domains still failing after retry.")
                     else:
                         print("All domains have been processed successfully after retry.")
-                        # Genera il report dopo il retry se ci sono screenshot
-                        if session.get("screenshots_done", 0) > 0:
+                        session = load_session(session_file)
+                        if session and (session.get("screenshots_done", 0) > 0 or len(session.get("successful_domains_order", [])) > 0):
                             print("\nGenerating report...")
                             try:
                                 generate_report(args.screenshot_dir)
@@ -944,7 +893,7 @@ def main():
                 print("\nOperation canceled by user.")
                 sys.exit(0)
     else:
-        print("No failed domains. Process completed.")
+        print("Process completed.")
 
 if __name__ == "__main__":
     main()
