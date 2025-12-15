@@ -1,12 +1,7 @@
 # Domain Screenshoter
-         _                                  _           _            
-        | |                                | |         | |           
-      __| |___  ___ _ __ ___  ___ _ __  ___| |__   ___ | |_ ___ _ __ 
-     / _` / __|/ __| '__/ _ \/ _ \ '_ \/ __| '_ \ / _ \| __/ _ \ '__|
-    | (_| \__ \ (__| | |  __/  __/ | | \__ \ | | | (_) | ||  __/ |   
-     \__,_|___/\___|_|  \___|\___|_| |_|___/_| |_|\___/ \__\___|_|  
-                                                                       
-                                                                       
+
+![Logo](img/logo.png)
+
 This tool automates taking screenshots of a list of domains, optionally routing traffic through a VPN and automatically generates an interactive HTML report for browsing, filtering, and removing visually similar duplicates using perceptual image comparison.
 
 ## Features
@@ -63,6 +58,7 @@ python dscreenshoter.py \\
 | `-m, --vpn-mode` | VPN mode: `openvpn`, `nordvpn`, or `none` (default: `none`) |
 | `-v, --vpn-dir`  | Directory with `.ovpn` files (required if `-m openvpn`) |
 | `-d, --domains` | File containing targets, one per line (see Target Formats below) |
+| `--stdin` | Read targets from stdin instead of a file (for piping from other tools) |
 | `-o, --output` | Directory to store screenshots and report |
 | `-t, --threads` | Number of threads for concurrent processing |
 | `-T, --timeout` | Page load timeout (in seconds) for Selenium |
@@ -97,6 +93,15 @@ http://example.org
 192.168.1.0/24
 8.8.8.8
 github.com
+```
+
+**Reading from stdin (for piping from other tools):**
+```bash
+# Example: pipe from subfinder and httpx
+subfinder -d example.com | httpx -silent | python3 dscreenshoter.py --stdin -o output -t 10 -T 10
+
+# Or from a simple list
+echo -e "google.com\ngithub.com" | python3 dscreenshoter.py --stdin -o output -t 10 -T 10
 ```
 
 ## Sample Commands

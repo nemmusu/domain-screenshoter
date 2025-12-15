@@ -771,17 +771,19 @@ def main():
     banner()
     parser = argparse.ArgumentParser(
         description="Domain screenshot tool with optional VPN rotation.",
-        epilog="Target formats accepted in domains file:\n"
+        epilog="Target formats accepted in domains file or stdin:\n"
                "  - Full URL: https://example.com or http://example.com\n"
                "  - CIDR notation: 192.168.1.0/24 (expands to all IPs in range)\n"
                "  - IP address: 192.168.1.1 (tries both http and https)\n"
                "  - Domain name: example.com (tries https first, then http)\n"
-               "Each target should be on a separate line.",
+               "Each target should be on a separate line.\n"
+               "Use --stdin to read from stdin (e.g., for piping from other tools).",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("-m", "--vpn-mode", default="none", choices=["openvpn","nordvpn","none"], help="VPN mode: openvpn, nordvpn, or none (default: none)")
     parser.add_argument("-v", "--vpn-dir", help="Directory with .ovpn files (required if --vpn-mode=openvpn)")
-    parser.add_argument("-d", "--domains", required=True, help="File containing the domain list (one target per line)")
+    parser.add_argument("-d", "--domains", help="File containing the domain list (one target per line)")
+    parser.add_argument("--stdin", action="store_true", help="Read targets from stdin instead of a file")
     parser.add_argument("-o", "--output", required=True, dest="screenshot_dir", help="Screenshot output folder")
     parser.add_argument("-t", "--threads", type=int, required=True, help="Number of threads")
     parser.add_argument("-T", "--timeout", type=int, required=True, help="Page load timeout (in seconds)")
@@ -827,26 +829,48 @@ def main():
         logging.getLogger('general_errors').error(error_message)
         sys.exit(1)
     setup_logging(args.screenshot_dir)
-    if not os.path.exists(args.domains):
-        error_message = f"Domains file '{args.domains}' does not exist."
-        print(f"Error: {error_message}")
-        logging.getLogger('general_errors').error(error_message)
-        sys.exit(1)
-    try:
-        with open(args.domains, "r") as file:
-            domains = [line.strip() for line in file if line.strip()]
-    except Exception as e:
-        error_message = f"Error reading domains file: {str(e)}"
-        print(f"Error: {error_message}")
-        logging.getLogger('general_errors').error(error_message)
-        sys.exit(1)
+    
+    if args.stdin:
+        if args.domains:
+            error_message = "Cannot use both --stdin and -d/--domains. Use one or the other."
+            print(f"Error: {error_message}")
+            logging.getLogger('general_errors').error(error_message)
+            sys.exit(1)
+        try:
+            domains = [line.strip() for line in sys.stdin if line.strip()]
+        except Exception as e:
+            error_message = f"Error reading from stdin: {str(e)}"
+            print(f"Error: {error_message}")
+            logging.getLogger('general_errors').error(error_message)
+            sys.exit(1)
+        session_file = f"stdin_{os.path.basename(args.screenshot_dir)}.session"
+    else:
+        if not args.domains:
+            error_message = "Either -d/--domains or --stdin must be specified."
+            print(f"Error: {error_message}")
+            logging.getLogger('general_errors').error(error_message)
+            sys.exit(1)
+        if not os.path.exists(args.domains):
+            error_message = f"Domains file '{args.domains}' does not exist."
+            print(f"Error: {error_message}")
+            logging.getLogger('general_errors').error(error_message)
+            sys.exit(1)
+        try:
+            with open(args.domains, "r") as file:
+                domains = [line.strip() for line in file if line.strip()]
+        except Exception as e:
+            error_message = f"Error reading domains file: {str(e)}"
+            print(f"Error: {error_message}")
+            logging.getLogger('general_errors').error(error_message)
+            sys.exit(1)
+        session_file = f"{os.path.basename(args.domains)}_{os.path.basename(args.screenshot_dir)}.session"
+    
     if not domains:
         error_message = "No domains found."
         print(f"Error: {error_message}")
         logging.getLogger('general_errors').error(error_message)
         sys.exit(1)
     domains = list(set(domains))
-    session_file = f"{os.path.basename(args.domains)}_{os.path.basename(args.screenshot_dir)}.session"
     try:
         process_domains(domains, args.screenshot_dir, args.vpn_dir if args.vpn_dir else "", args.max_requests, args.threads, args.timeout, webdriver_path, session_file, args.delay, args.vpn_mode)
     except KeyboardInterrupt:
