@@ -16,6 +16,7 @@ This tool automates taking screenshots of a list of domains, optionally routing 
 - **Failure & Retry Mechanism**: Retains failed domains for later retry with IP rotation.
 - **Progress Bars**: Provides real‑time feedback on processing domains, screenshots, and requests.
 - **Screenshot Automation**: Uses Selenium in headless mode with full-page capture.
+- **JavaScript Support**: Since it uses Selenium, it can screenshot pages with JavaScript-rendered content (SPAs, dynamic pages, etc.).
 - **Graceful Interrupt Handling**: Safely terminates VPN connections and preserves session data.
 - **Automatic Report Generation**: Creates an interactive HTML report after completion.
 
@@ -24,6 +25,7 @@ This tool automates taking screenshots of a list of domains, optionally routing 
 - Python 3.8+
 - pip packages: `requests`, `tqdm`, `selenium`, `pillow`, `imagehash`
 - Chrome + matching `chromedriver`
+  - **Note**: Since the tool uses Selenium with Chrome, it can capture JavaScript-rendered content, including Single Page Applications (SPAs) and dynamically loaded pages.
 - OpenVPN CLI (if `-m openvpn`) or NordVPN CLI (if `-m nordvpn`)
 
 ## Installation
