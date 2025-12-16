@@ -16,6 +16,7 @@ def generate_report(output_folder, columns=4):
     report_info_path = os.path.join(output_folder, "report_info.json")
     successful_domains_order = []
     domain_urls = {}
+    domain_titles = {}
     
     if os.path.exists(report_info_path):
         try:
@@ -23,6 +24,7 @@ def generate_report(output_folder, columns=4):
                 report_info = json.load(f)
                 successful_domains_order = report_info.get("successful_domains_order", [])
                 domain_urls = report_info.get("domain_urls", {})
+                domain_titles = report_info.get("domain_titles", {})
         except Exception as e:
             print(f"Warning: Could not load report info: {e}")
 
@@ -70,10 +72,12 @@ def generate_report(output_folder, columns=4):
             domain_url = domain_urls.get(domain, f"https://{domain}")
             if not domain_url.startswith(("http://", "https://")):
                 domain_url = f"https://{domain_url}"
+            page_title = domain_titles.get(domain, "")
             sidebar_domains.append({
                 'domain': domain,
                 'url': domain_url,
-                'img': img
+                'img': img,
+                'title': page_title
             })
 
     html_content = f"""
@@ -187,6 +191,15 @@ def generate_report(output_folder, columns=4):
                 margin-bottom: 4px;
                 font-size: 14px;
             }}
+            .domain-title {{
+                font-size: 11px;
+                color: #888;
+                font-style: italic;
+                margin-bottom: 4px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }}
             .domain-url {{
                 font-size: 12px;
                 color: #666;
@@ -237,6 +250,15 @@ def generate_report(output_folder, columns=4):
                 color: #333;
                 font-size: 14px;
                 margin-bottom: 4px;
+            }}
+            .gallery-item .caption .domain-title {{
+                font-size: 11px;
+                color: #888;
+                font-style: italic;
+                margin: 2px 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
             }}
             .gallery-item .caption .domain-url {{
                 font-size: 12px;
@@ -290,6 +312,12 @@ def generate_report(output_folder, columns=4):
                 font-weight: 600;
                 color: #333;
                 margin-bottom: 8px;
+            }}
+            .modal-info .domain-title {{
+                font-size: 14px;
+                color: #888;
+                font-style: italic;
+                margin: 4px 0 8px 0;
             }}
             .modal-info .domain-url {{
                 font-size: 14px;
@@ -441,11 +469,14 @@ def generate_report(output_folder, columns=4):
         domain = domain_info['domain']
         domain_url = domain_info['url']
         img = domain_info['img']
+        page_title = domain_info.get('title', '')
         truncated_domain = domain if len(domain) <= 25 else domain[:25] + "..."
+        truncated_title = page_title if len(page_title) <= 30 else page_title[:30] + "..." if page_title else ""
         
         html_content += f"""
                     <li class="domain-item" data-img="{html.escape(img)}" data-index="{idx}">
                         <div class="domain-name">{html.escape(truncated_domain)}</div>
+                        {f'<div class="domain-title">{html.escape(truncated_title)}</div>' if truncated_title else ''}
                         <a href="{html.escape(domain_url)}" class="domain-url" target="_blank" onclick="event.stopPropagation()">{html.escape(domain_url)}</a>
                     </li>
         """
@@ -468,6 +499,9 @@ def generate_report(output_folder, columns=4):
         if not domain_url.startswith(("http://", "https://")):
             domain_url = f"https://{domain_url}"
         
+        page_title = domain_titles.get(domain, "")
+        truncated_title = page_title if len(page_title) <= 25 else page_title[:25] + "..." if page_title else ""
+        
         domain_url_escaped = html.escape(domain_url)
         
         html_content += f"""
@@ -475,6 +509,7 @@ def generate_report(output_folder, columns=4):
                         <img src="{html.escape(img)}" alt="{html.escape(domain)}" data-hash="{img_hash}" loading="lazy">
                         <div class="caption">
                             <div class="domain-name">{html.escape(truncated_domain)}</div>
+                            {f'<div class="domain-title">{html.escape(truncated_title)}</div>' if truncated_title else ''}
                             <a href="{domain_url_escaped}" class="domain-url" target="_blank">{html.escape(truncated_domain)}</a>
                         </div>
                     </div>
@@ -491,6 +526,7 @@ def generate_report(output_folder, columns=4):
                 <img id="modal-image" src="" alt="Image">
                 <div class="modal-info">
                     <div class="domain-name" id="modal-domain-name"></div>
+                    <div class="domain-title" id="modal-domain-title"></div>
                     <a href="#" class="domain-url" id="modal-domain-url" target="_blank"></a>
                 </div>
             </div>
@@ -501,6 +537,7 @@ def generate_report(output_folder, columns=4):
             let modal = document.getElementById("modal");
             let modalImage = document.getElementById("modal-image");
             let modalDomainName = document.getElementById("modal-domain-name");
+            let modalDomainTitle = document.getElementById("modal-domain-title");
             let modalDomainUrl = document.getElementById("modal-domain-url");
             let currentIndex = -1;
             let allImages = [];
@@ -568,6 +605,16 @@ def generate_report(output_folder, columns=4):
                 
                 modalImage.src = imgSrc;
                 modalDomainName.textContent = domain;
+                
+                // Trova il titolo dalla caption
+                const titleElement = galleryItem.querySelector(".domain-title");
+                if (titleElement) {
+                    modalDomainTitle.textContent = titleElement.textContent;
+                    modalDomainTitle.style.display = "";
+                } else {
+                    modalDomainTitle.textContent = "";
+                    modalDomainTitle.style.display = "none";
+                }
                 
                 // Trova l'URL dal link nella caption
                 const urlLink = galleryItem.querySelector(".domain-url");

@@ -3,3 +3,4 @@ tqdm
 selenium
 pillow
 imagehash
+beautifulsoup4

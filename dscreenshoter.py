@@ -7,6 +7,9 @@ import argparse
 import ipaddress
 import configparser
 import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+from bs4 import BeautifulSoup
 from tqdm import tqdm
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -33,7 +36,7 @@ def ensure_session_dir():
     os.makedirs(session_dir, exist_ok=True)
     return session_dir
 
-def save_session(session_file, processed_domains, remaining_domains, screenshots_done, failed_domains, successful_domains_order=None, domain_urls=None):
+def save_session(session_file, processed_domains, remaining_domains, screenshots_done, failed_domains, successful_domains_order=None, domain_urls=None, domain_titles=None, domain_status_codes=None, domain_body_excerpts=None):
     session_dir = ensure_session_dir()
     session_path = os.path.join(session_dir, session_file)
     session_data = {
@@ -43,6 +46,9 @@ def save_session(session_file, processed_domains, remaining_domains, screenshots
         "failed_domains": list(failed_domains),
         "successful_domains_order": successful_domains_order or [],
         "domain_urls": domain_urls or {},
+        "domain_titles": domain_titles or {},
+        "domain_status_codes": domain_status_codes or {},
+        "domain_body_excerpts": domain_body_excerpts or {},
     }
     try:
         with open(session_path, "w") as f:
@@ -218,7 +224,7 @@ def safe_filename(value):
     return re.sub(r"[^a-zA-Z0-9._-]", "_", value)
 
 
-def take_screenshot(domain, output_folder, timeout, webdriver_path):
+def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data=False):
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
@@ -244,6 +250,17 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path):
             try:
                 driver.set_page_load_timeout(timeout)
                 driver.get(url)
+                
+                # Attendi che la pagina sia caricata (ridotto da 2+1+2=5s a ~0.5s)
+                if get_csv_data:
+                    # Attendi che il DOM sia pronto
+                    try:
+                        driver.execute_script("return document.readyState === 'complete'")
+                        time.sleep(0.5)  # Sleep ridotto per il rendering
+                    except:
+                        time.sleep(0.5)
+                else:
+                    time.sleep(0.3)  # Sleep minimo per il rendering
 
                 total_width = driver.execute_script("return document.body.scrollWidth")
                 total_height = driver.execute_script("return document.body.scrollHeight")
@@ -254,7 +271,8 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path):
                 total_height = min(total_height, max_height)
                 
                 driver.set_window_size(total_width, total_height)
-                time.sleep(0.5)
+                # Sleep minimo dopo resize
+                time.sleep(0.2)
 
                 parsed = urlparse(url)
                 host = parsed.netloc if parsed.netloc else parsed.path
@@ -262,20 +280,64 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path):
                 screenshot_path = os.path.join(output_folder, filename)
                 existed_before = os.path.exists(screenshot_path)
 
-                driver.save_screenshot(screenshot_path)
+                if not existed_before:
+                    driver.save_screenshot(screenshot_path)
+                    if not (os.path.exists(screenshot_path) and os.path.getsize(screenshot_path) > 5000):
+                        continue
 
-                if os.path.exists(screenshot_path) and os.path.getsize(screenshot_path) > 5000:
-                    return (not existed_before, url)
+                try:
+                    page_title = driver.title
+                except:
+                    page_title = ""
+                
+                if get_csv_data:
+                    # Usa direttamente i dati del browser invece di richieste HTTP separate
+                    status_code = 200
+                    try:
+                        status_code = int(driver.execute_script("""
+                            try {
+                                var entries = performance.getEntriesByType('navigation');
+                                if (entries && entries.length > 0) {
+                                    return entries[0].responseStatus || entries[0].status || 200;
+                                }
+                                return 200;
+                            } catch(e) {
+                                return 200;
+                            }
+                        """))
+                    except:
+                        status_code = 200
+                    
+                    # Usa execute_script direttamente invece di BeautifulSoup (più veloce)
+                    body_excerpt = ""
+                    try:
+                        body_excerpt = driver.execute_script("""
+                            try {
+                                var text = document.body.innerText || document.body.textContent || '';
+                                return text.trim().substring(0, 200).replace(/\\s+/g, ' ');
+                            } catch(e) {
+                                return '';
+                            }
+                        """)
+                        if not body_excerpt:
+                            body_excerpt = ""
+                    except:
+                        body_excerpt = ""
+                else:
+                    status_code = None
+                    body_excerpt = ""
+                
+                return (not existed_before, url, page_title, status_code, body_excerpt)
 
             except Exception as e:
                 logging.getLogger('domain_errors').error(f"{domain}: URL error {url} → {e}")
                 continue
 
-        return False, None
+        return False, None, "", None, ""
 
     except Exception as e:
         logging.getLogger('domain_errors').error(f"{domain}: Unexpected error during screenshot: {e}")
-        return False, None
+        return False, None, "", None, ""
 
     finally:
         try:
@@ -284,16 +346,22 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path):
             pass
 
 
-def process_domains(domains, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, session_file, delay, vpn_mode):
+def process_domains(domains, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, session_file, delay, vpn_mode, get_csv_data=False):
 
     vpn_process = None
     session = load_session(session_file)
+    domain_titles = {}
+    domain_status_codes = {}
+    domain_body_excerpts = {}
     if session:
         processed_domains_raw = session.get("processed_domains", [])
         screenshots_done = session.get("screenshots_done", 0)
         failed_domains = set(session.get("failed_domains", []))
         successful_domains_order = session.get("successful_domains_order", [])
         domain_urls = session.get("domain_urls", {})
+        domain_titles = session.get("domain_titles", {})
+        domain_status_codes = session.get("domain_status_codes", {})
+        domain_body_excerpts = session.get("domain_body_excerpts", {})
         
         def normalize_domain_for_session(d):
             """Normalize expanded URLs to original domains (remove http:// and https:// for normal domains)"""
@@ -335,6 +403,9 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                     processed_domains, screenshots_done, failed_domains = [], 0, set()
                     successful_domains_order = []
                     domain_urls = {}
+                    domain_titles = {}
+                    domain_status_codes = {}
+                    domain_body_excerpts = {}
                     domains = list(set(domains))
                     break
 
@@ -350,6 +421,9 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
         processed_domains, screenshots_done, failed_domains = [], 0, set()
         successful_domains_order = []
         domain_urls = {}
+        domain_titles = {}
+        domain_status_codes = {}
+        domain_body_excerpts = {}
         domains = list(set(domains))
 
     domains_to_process = []
@@ -363,6 +437,11 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
 
     total_domains = len(domains_to_process)
     remaining_domains = [d for d in domains_to_process if d not in processed_domains]
+    
+    if get_csv_data:
+        for domain in processed_domains:
+            if domain in domains_to_process and (domain not in domain_status_codes or domain not in domain_body_excerpts):
+                remaining_domains.append(domain)
 
 
 
@@ -435,7 +514,7 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
 
                     if not connected:
                         tqdm.write("Could not connect to VPN after 5 attempts. Saving session and exiting...")
-                        save_session(session_file, processed_domains, remaining_domains[i:], screenshots_done, failed_domains, successful_domains_order, domain_urls)
+                        save_session(session_file, processed_domains, remaining_domains[i:], screenshots_done, failed_domains, successful_domains_order, domain_urls, domain_titles, domain_status_codes, domain_body_excerpts)
                         sys.exit(1)
 
 
@@ -447,7 +526,7 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                 interrupted = False
 
                 futures = {
-                    executor.submit(take_screenshot, domain, output_folder, timeout, webdriver_path): domain
+                    executor.submit(take_screenshot, domain, output_folder, timeout, webdriver_path, get_csv_data): domain
                     for domain in batch_domains
                 }
 
@@ -458,7 +537,15 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                         domain = futures[future]
 
                         try:
-                            success, working_url = future.result()
+                            result = future.result()
+                            if len(result) == 5:
+                                success, working_url, page_title, status_code, body_excerpt = result
+                            elif len(result) == 3:
+                                success, working_url, page_title = result
+                                status_code, body_excerpt = None, ""
+                            else:
+                                success, working_url = result
+                                page_title, status_code, body_excerpt = "", None, ""
 
                             completed_requests += 1
                             progress_bar_requests.update(1)
@@ -474,6 +561,11 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                                 if domain not in successful_domains_order:
                                     successful_domains_order.append(domain)
                                 domain_urls[domain] = working_url
+                                if page_title:
+                                    domain_titles[domain] = page_title
+                                if get_csv_data:
+                                    domain_status_codes[domain] = str(status_code) if status_code is not None else ""
+                                    domain_body_excerpts[domain] = str(body_excerpt) if body_excerpt else ""
                             else:
                                 failed_domains.add(domain)
 
@@ -485,7 +577,7 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                     interrupted = True
 
                 finally:
-                    save_session(session_file, processed_domains, remaining_domains[i + completed_requests:], screenshots_done, failed_domains, successful_domains_order, domain_urls)
+                    save_session(session_file, processed_domains, remaining_domains[i + completed_requests:], screenshots_done, failed_domains, successful_domains_order, domain_urls, domain_titles, domain_status_codes, domain_body_excerpts)
 
                     if interrupted:
                         tqdm.write(f"\nOperation canceled by user. Session saved as '{session_file}'.")
@@ -509,13 +601,17 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
         if vpn_mode == "openvpn" and vpn_process:
             disconnect_openvpn(vpn_process)
 
-        save_session(session_file, processed_domains, [], screenshots_done, failed_domains, successful_domains_order, domain_urls)
+        save_session(session_file, processed_domains, [], screenshots_done, failed_domains, successful_domains_order, domain_urls, domain_titles, domain_status_codes, domain_body_excerpts)
         
         report_info_path = os.path.join(output_folder, "report_info.json")
         report_info = {
             "successful_domains_order": successful_domains_order,
-            "domain_urls": domain_urls
+            "domain_urls": domain_urls,
+            "domain_titles": domain_titles
         }
+        
+        if get_csv_data:
+            generate_csv(output_folder, successful_domains_order, domain_urls, domain_titles, domain_status_codes, domain_body_excerpts)
         try:
             with open(report_info_path, "w") as f:
                 json.dump(report_info, f)
@@ -540,18 +636,41 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
         print("All domains have been processed.")
 
 
+def generate_csv(output_folder, successful_domains_order, domain_urls, domain_titles, domain_status_codes, domain_body_excerpts):
+    import csv
+    csv_path = os.path.join(output_folder, "report.csv")
+    try:
+        with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(['site', 'status_code', 'title', 'body_excerpt'])
+            
+            for domain in successful_domains_order:
+                status_code = domain_status_codes.get(domain, "")
+                title = domain_titles.get(domain, "")
+                body_excerpt = domain_body_excerpts.get(domain, "")
+                writer.writerow([domain, status_code, title, body_excerpt])
+        
+        print(f"CSV report generated at: {csv_path}")
+    except Exception as e:
+        logging.getLogger('general_errors').error(f"Failed to generate CSV: {str(e)}")
+        print(f"Warning: Could not generate CSV: {str(e)}")
 
 
-
-def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, delay, vpn_mode):
+def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, delay, vpn_mode, get_csv_data=False):
     retry_file = f"{os.path.basename(session_file)}.retry.session"
     successful_domains_order = []
     domain_urls = {}
+    domain_titles = {}
+    domain_status_codes = {}
+    domain_body_excerpts = {}
     
     main_session = load_session(session_file)
     if main_session:
         successful_domains_order = main_session.get("successful_domains_order", [])
         domain_urls = main_session.get("domain_urls", {})
+        domain_titles = main_session.get("domain_titles", {})
+        domain_status_codes = main_session.get("domain_status_codes", {})
+        domain_body_excerpts = main_session.get("domain_body_excerpts", {})
     
     while True:
         retry_session = load_retry_session(retry_file)
@@ -658,14 +777,22 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
                 progress_bar_requests.reset()
                 completed_requests = 0
                 futures = {
-                    executor.submit(take_screenshot, domain, output_folder, timeout, webdriver_path): domain
+                    executor.submit(take_screenshot, domain, output_folder, timeout, webdriver_path, get_csv_data): domain
                     for domain in batch_domains
                 }
                 try:
                     for future in as_completed(futures):
                         domain = futures[future]
                         try:
-                            success, working_url = future.result()
+                            result = future.result()
+                            if len(result) == 5:
+                                success, working_url, page_title, status_code, body_excerpt = result
+                            elif len(result) == 3:
+                                success, working_url, page_title = result
+                                status_code, body_excerpt = None, ""
+                            else:
+                                success, working_url = result
+                                page_title, status_code, body_excerpt = "", None, ""
                             processed_domains.append(domain)
                             progress_bar_domains.update(1)
                             progress_bar_requests.update(1)
@@ -678,6 +805,22 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
                                     successful_domains_order.append(domain)
                                 if working_url:
                                     domain_urls[domain] = working_url
+                                if page_title:
+                                    domain_titles[domain] = page_title
+                                if get_csv_data:
+                                    domain_status_codes[domain] = str(status_code) if status_code is not None else ""
+                                    domain_body_excerpts[domain] = str(body_excerpt) if body_excerpt else ""
+                            elif working_url:
+                                failed_domains_set.discard(domain)
+                                if domain not in successful_domains_order:
+                                    successful_domains_order.append(domain)
+                                if working_url:
+                                    domain_urls[domain] = working_url
+                                if page_title:
+                                    domain_titles[domain] = page_title
+                                if get_csv_data:
+                                    domain_status_codes[domain] = str(status_code) if status_code is not None else ""
+                                    domain_body_excerpts[domain] = str(body_excerpt) if body_excerpt else ""
                             else:
                                 failed_domains_set.add(domain)
                         except Exception:
@@ -722,15 +865,22 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
                          main_session.get('screenshots_done', 0),
                          failed_domains_set,
                          successful_domains_order,
-                         domain_urls)
+                         domain_urls,
+                         domain_titles,
+                         domain_status_codes,
+                         domain_body_excerpts)
         else:
-            save_session(session_file, [], [], 0, failed_domains_set, successful_domains_order, domain_urls)
+            save_session(session_file, [], [], 0, failed_domains_set, successful_domains_order, domain_urls, domain_titles, domain_status_codes, domain_body_excerpts)
         
         report_info_path = os.path.join(output_folder, "report_info.json")
         report_info = {
             "successful_domains_order": successful_domains_order,
-            "domain_urls": domain_urls
+            "domain_urls": domain_urls,
+            "domain_titles": domain_titles
         }
+        
+        if get_csv_data:
+            generate_csv(output_folder, successful_domains_order, domain_urls, domain_titles, domain_status_codes, domain_body_excerpts)
         try:
             with open(report_info_path, "w") as f:
                 json.dump(report_info, f)
@@ -777,18 +927,19 @@ def main():
                "  - IP address: 192.168.1.1 (tries both http and https)\n"
                "  - Domain name: example.com (tries https first, then http)\n"
                "Each target should be on a separate line.\n"
-               "Use --stdin to read from stdin (e.g., for piping from other tools).",
+               "Use -s/--stdin to read from stdin (e.g., for piping from other tools).",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("-m", "--vpn-mode", default="none", choices=["openvpn","nordvpn","none"], help="VPN mode: openvpn, nordvpn, or none (default: none)")
     parser.add_argument("-v", "--vpn-dir", help="Directory with .ovpn files (required if --vpn-mode=openvpn)")
     parser.add_argument("-d", "--domains", help="File containing the domain list (one target per line)")
-    parser.add_argument("--stdin", action="store_true", help="Read targets from stdin instead of a file")
+    parser.add_argument("-s", "--stdin", action="store_true", help="Read targets from stdin instead of a file")
     parser.add_argument("-o", "--output", required=True, dest="screenshot_dir", help="Screenshot output folder")
     parser.add_argument("-t", "--threads", type=int, required=True, help="Number of threads")
     parser.add_argument("-T", "--timeout", type=int, required=True, help="Page load timeout (in seconds)")
     parser.add_argument("-n", "--max-requests", type=int, help="Max requests before changing IP (required if using VPN)")
     parser.add_argument("-D", "--delay", type=int, default=0, help="Delay (in seconds) before connecting to the new VPN (default: 0)")
+    parser.add_argument("-c", "--csv", action="store_true", help="Generate a CSV file with domain, status code, title, and body excerpt")
     args = parser.parse_args()
     if args.vpn_mode == "none":
         if args.max_requests:
@@ -832,7 +983,7 @@ def main():
     
     if args.stdin:
         if args.domains:
-            error_message = "Cannot use both --stdin and -d/--domains. Use one or the other."
+            error_message = "Cannot use both -s/--stdin and -d/--domains. Use one or the other."
             print(f"Error: {error_message}")
             logging.getLogger('general_errors').error(error_message)
             sys.exit(1)
@@ -846,7 +997,7 @@ def main():
         session_file = f"stdin_{os.path.basename(args.screenshot_dir)}.session"
     else:
         if not args.domains:
-            error_message = "Either -d/--domains or --stdin must be specified."
+            error_message = "Either -d/--domains or -s/--stdin must be specified."
             print(f"Error: {error_message}")
             logging.getLogger('general_errors').error(error_message)
             sys.exit(1)
@@ -872,7 +1023,7 @@ def main():
         sys.exit(1)
     domains = list(set(domains))
     try:
-        process_domains(domains, args.screenshot_dir, args.vpn_dir if args.vpn_dir else "", args.max_requests, args.threads, args.timeout, webdriver_path, session_file, args.delay, args.vpn_mode)
+        process_domains(domains, args.screenshot_dir, args.vpn_dir if args.vpn_dir else "", args.max_requests, args.threads, args.timeout, webdriver_path, session_file, args.delay, args.vpn_mode, args.csv)
     except KeyboardInterrupt:
         print("\nOperation canceled by user.")
         sys.exit(0)
@@ -890,7 +1041,7 @@ def main():
             try:
                 retry_choice = input().strip().lower()
                 if retry_choice == 'y':
-                    continue_retry = retry_failed_domains(session_file, args.screenshot_dir, args.vpn_dir if args.vpn_dir else "", args.max_requests, args.threads, args.timeout, webdriver_path, args.delay, args.vpn_mode)
+                    continue_retry = retry_failed_domains(session_file, args.screenshot_dir, args.vpn_dir if args.vpn_dir else "", args.max_requests, args.threads, args.timeout, webdriver_path, args.delay, args.vpn_mode, args.csv)
                     if not continue_retry:
                         break
                     session = load_session(session_file)
@@ -907,6 +1058,13 @@ def main():
                             except Exception as e:
                                 logging.getLogger('general_errors').error(f"Failed to generate report: {str(e)}")
                                 print(f"Warning: Could not generate report: {str(e)}")
+                            if args.csv:
+                                successful_domains_order = session.get("successful_domains_order", [])
+                                domain_urls = session.get("domain_urls", {})
+                                domain_titles = session.get("domain_titles", {})
+                                domain_status_codes = session.get("domain_status_codes", {})
+                                domain_body_excerpts = session.get("domain_body_excerpts", {})
+                                generate_csv(args.screenshot_dir, successful_domains_order, domain_urls, domain_titles, domain_status_codes, domain_body_excerpts)
                         break
                 elif retry_choice == 'n':
                     print("Retry skipped.")

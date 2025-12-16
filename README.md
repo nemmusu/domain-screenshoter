@@ -14,6 +14,7 @@ This tool automates taking screenshots of a list of domains, optionally routing 
 - **JavaScript Support**: Since it uses Selenium, it can screenshot pages with JavaScript-rendered content (SPAs, dynamic pages, etc.).
 - **Graceful Interrupt Handling**: Safely terminates VPN connections and preserves session data.
 - **Automatic Report Generation**: Creates an interactive HTML report after completion.
+- **CSV Export**: Optional CSV report with domain, HTTP status code, page title, and body excerpt (`-c/--csv`).
 
 ## Requirements
 
@@ -44,9 +45,11 @@ webdriver_path = /path/to/chromedriver
 python dscreenshoter.py \\
   [-m {openvpn,nordvpn,none}] \\
   [-v VPN_DIR] \\
-  -d DOMAINS -o OUTPUT_DIR \\
+  [-d DOMAINS | -s] \\
+  -o OUTPUT_DIR \\
   -t THREADS -T TIMEOUT \\
-  [-n MAX_REQUESTS] [-D DELAY]
+  [-n MAX_REQUESTS] [-D DELAY] \\
+  [-c]
 ```
 
 > **Note**: `-m none` is the default. If you don't specify `-m`, the script runs without VPN.
@@ -58,12 +61,13 @@ python dscreenshoter.py \\
 | `-m, --vpn-mode` | VPN mode: `openvpn`, `nordvpn`, or `none` (default: `none`) |
 | `-v, --vpn-dir`  | Directory with `.ovpn` files (required if `-m openvpn`) |
 | `-d, --domains` | File containing targets, one per line (see Target Formats below) |
-| `--stdin` | Read targets from stdin instead of a file (for piping from other tools) |
+| `-s, --stdin` | Read targets from stdin instead of a file (for piping from other tools) |
 | `-o, --output` | Directory to store screenshots and report |
 | `-t, --threads` | Number of threads for concurrent processing |
 | `-T, --timeout` | Page load timeout (in seconds) for Selenium |
 | `-n, --max-requests` | Requests per IP before switching VPN (required if using VPN) |
 | `-D, --delay` | Delay (in seconds) before re‑establishing VPN (default: 0) |
+| `-c, --csv` | Generate CSV report with status code, title, and body excerpt |
 
 **Command-line help:**
 ![Help Output](img/help.png)
@@ -98,10 +102,10 @@ github.com
 **Reading from stdin (for piping from other tools):**
 ```bash
 # Example: pipe from subfinder and httpx
-subfinder -d example.com | httpx -silent | python3 dscreenshoter.py --stdin -o output -t 10 -T 10
+subfinder -d example.com | httpx -silent | python3 dscreenshoter.py -s -o output -t 10 -T 10
 
 # Or from a simple list
-echo -e "google.com\ngithub.com" | python3 dscreenshoter.py --stdin -o output -t 10 -T 10
+echo -e "google.com\ngithub.com" | python3 dscreenshoter.py -s -o output -t 10 -T 10
 ```
 
 ## Sample Commands
@@ -133,6 +137,21 @@ python dscreenshoter.py \\
     -t 20 -T 15 -n 50 -D 5
 ```
 
+### 4. With CSV Export
+
+```bash
+python dscreenshoter.py \\
+    -d domains.txt -o screenshots \\
+    -t 10 -T 10 \\
+    -c
+```
+
+This will generate a `report.csv` file in the output directory with columns:
+- `site`: Domain name
+- `status_code`: HTTP status code (200, 404, etc.)
+- `title`: Page title
+- `body_excerpt`: First 200 characters of page body text
+
 ## Progress Bars and Sample Output
 
 During execution, the script displays progress bars using `tqdm`. Here's a complete session example:
@@ -150,7 +169,25 @@ When all domains are processed, or if you cancel, the current session is saved. 
 
 If any domains fail due to timeouts or errors, they are marked in the session file. Upon restart, you can pick up where you left off or start over. The script will also prompt you to retry failed domains at the end.
 
-## Interactive HTML Report
+## Output Files
+
+### CSV Report (optional, with `-c/--csv`)
+
+When using the `-c/--csv` flag, the script generates a `report.csv` file containing:
+- **site**: Domain name
+- **status_code**: HTTP response status code (e.g., 200, 404, 500)
+- **title**: Page title extracted from `<title>` tag
+- **body_excerpt**: First 200 characters of the page body text (whitespace normalized)
+
+The CSV is useful for:
+- Quick analysis of HTTP status codes
+- Extracting page titles for categorization
+- Getting text snippets for content analysis
+- Importing into spreadsheets or databases
+
+**Note**: When using `-c/--csv`, the script collects additional data during screenshot capture, which may slightly increase processing time per domain (~0.5-1 second).
+
+### Interactive HTML Report
 
 The script **automatically generates** an interactive HTML report (`report.html`) in the output directory after completion. The report includes:
 
@@ -163,7 +200,6 @@ The script **automatically generates** an interactive HTML report (`report.html`
 - **Keyboard Navigation**: Arrow keys to navigate, ESC to close
 - **Right-Click Menu**: Exclude visually similar images
 - **Lazy Loading**: Images load on-demand for better performance
-- **Correct Hyperlinks**: Links use the actual URL (http/https) that worked
 - **Ordered Display**: Domains shown in processing order
 
 ### Screenshots
