@@ -2,19 +2,19 @@
 
 ![Logo](img/logo.png)
 
-This tool automates taking screenshots of a list of domains, optionally routing traffic through a VPN and automatically generates an interactive HTML report for browsing, filtering, and removing visually similar duplicates using perceptual image comparison.
+This tool automates taking screenshots of a list of websites, optionally routing traffic through a VPN and automatically generates an interactive HTML report for browsing, filtering, and removing visually similar duplicates using perceptual image comparison.
 
 ## Features
 
 - **Optional VPN Rotation**: Supports OpenVPN or NordVPN (`-m, --vpn-mode`).
 - **Automatic Session Management**: Saves and resumes state across runs.
-- **Failure & Retry Mechanism**: Retains failed domains for later retry with IP rotation.
-- **Progress Bars**: Provides real‑time feedback on processing domains, screenshots, and requests.
+- **Failure & Retry Mechanism**: Retains failed websites for later retry with IP rotation.
+- **Progress Bars**: Provides real‑time feedback on processing websites, screenshots, and requests.
 - **Screenshot Automation**: Uses Selenium in headless mode with full-page capture.
 - **JavaScript Support**: Since it uses Selenium, it can screenshot pages with JavaScript-rendered content (SPAs, dynamic pages, etc.).
 - **Graceful Interrupt Handling**: Safely terminates VPN connections and preserves session data.
 - **Automatic Report Generation**: Creates an interactive HTML report after completion.
-- **CSV Export**: Optional CSV report with domain, HTTP status code, page title, and body excerpt (`-c/--csv`).
+- **CSV Export**: Optional CSV report with website, HTTP status code, page title, and body excerpt (`-c/--csv`).
 - **Automatic Cookie Consent**: Automatically accepts cookie consent banners (enabled by default, use `--no-cookie-accept` to disable).
 
 ## Requirements
@@ -46,7 +46,7 @@ webdriver_path = /path/to/chromedriver
 python dscreenshoter.py \\
   [-m {openvpn,nordvpn,none}] \\
   [-v VPN_DIR] \\
-  [-d DOMAINS | -s] \\
+  [-d WEBSITES | -s] \\
   -o OUTPUT_DIR \\
   -t THREADS -T TIMEOUT \\
   [-n MAX_REQUESTS] [-D DELAY] \\
@@ -61,7 +61,7 @@ python dscreenshoter.py \\
 |------|-------------|
 | `-m, --vpn-mode` | VPN mode: `openvpn`, `nordvpn`, or `none` (default: `none`) |
 | `-v, --vpn-dir`  | Directory with `.ovpn` files (required if `-m openvpn`) |
-| `-d, --domains` | File containing targets, one per line (see Target Formats below) |
+| `-d, --domains` | File containing websites, one per line (see Target Formats below) |
 | `-s, --stdin` | Read targets from stdin instead of a file (for piping from other tools) |
 | `-o, --output` | Directory to store screenshots and report |
 | `-t, --threads` | Number of threads for concurrent processing |
@@ -78,7 +78,7 @@ python dscreenshoter.py \\
 
 ### Target Formats
 
-The domains file accepts various target formats, one per line:
+The websites file accepts various target formats, one per line:
 
 - **Full URL**: `https://example.com` or `http://example.com`
   - Used with the default port (443 for HTTPS, 80 for HTTP)
@@ -109,7 +109,7 @@ The domains file accepts various target formats, one per line:
   - Tries HTTPS first (port 443), then HTTP (port 80) if HTTPS fails
   - Use `--port` to test additional custom ports (e.g., `--port 8000,8080`)
 
-**Example domains file:**
+**Example websites file:**
 ```
 https://example.com
 http://test.example.org
@@ -138,7 +138,7 @@ echo -e "google.com\ngithub.com" | python3 dscreenshoter.py -s -o output -t 10 -
 
 ```bash
 python dscreenshoter.py \\
-    -d domains.txt \\
+    -d websites.txt \\
     -o screenshots \\
     -t 10 -T 10
 ```
@@ -148,7 +148,7 @@ python dscreenshoter.py \\
 ```bash
 python dscreenshoter.py \\
     -m openvpn -v /path/to/ovpn \\
-    -d domains.txt -o screenshots \\
+    -d websites.txt -o screenshots \\
     -t 20 -T 15 -n 50 -D 5
 ```
 
@@ -157,7 +157,7 @@ python dscreenshoter.py \\
 ```bash
 python dscreenshoter.py \\
     -m nordvpn \\
-    -d domains.txt -o screenshots \\
+    -d websites.txt -o screenshots \\
     -t 20 -T 15 -n 50 -D 5
 ```
 
@@ -165,13 +165,13 @@ python dscreenshoter.py \\
 
 ```bash
 python dscreenshoter.py \\
-    -d domains.txt -o screenshots \\
+    -d websites.txt -o screenshots \\
     -t 10 -T 10 \\
     -c
 ```
 
 This will generate a `report.csv` file in the output directory with columns:
-- `site`: Domain name
+- `site`: Website name
 - `status_code`: HTTP status code (200, 404, etc.)
 - `title`: Page title
 - `body_excerpt`: First 200 characters of page body text
@@ -180,7 +180,7 @@ This will generate a `report.csv` file in the output directory with columns:
 
 ```bash
 python dscreenshoter.py \\
-    -d domains.txt -o screenshots \\
+    -d websites.txt -o screenshots \\
     -t 10 -T 10 \\
     --no-cookie-accept
 ```
@@ -191,7 +191,7 @@ By default, the tool automatically accepts cookie consent banners. Use `--no-coo
 
 ```bash
 python dscreenshoter.py \\
-    -d domains.txt -o screenshots \\
+    -d websites.txt -o screenshots \\
     -t 10 -T 15 \\
     --port 8000,8080,8443
 ```
@@ -205,15 +205,15 @@ During execution, the script displays progress bars using `tqdm`. Here's a compl
 ![CLI Screenshot](img/cli.png)
 
 You will see:
-- **Processed domains / total**: how many domains have been handled out of the total.
+- **Processed websites / total**: how many websites have been handled out of the total.
 - **Screenshots OK / total**: how many screenshots succeeded.
 - **Requests / batch**: how many requests have been performed in the current VPN batch.
 
-When all domains are processed, or if you cancel, the current session is saved. If domains fail, you can choose to retry them with a fresh VPN connection.
+When all websites are processed, or if you cancel, the current session is saved. If websites fail, you can choose to retry them with a fresh VPN connection.
 
 ## Resume & Retry
 
-If any domains fail due to timeouts or errors, they are marked in the session file. Upon restart, you can pick up where you left off or start over. The script will also prompt you to retry failed domains at the end.
+If any websites fail due to timeouts or errors, they are marked in the session file. Upon restart, you can pick up where you left off or start over. The script will also prompt you to retry failed websites at the end.
 
 ## Cookie Consent Handling
 
@@ -247,7 +247,7 @@ The CSV is useful for:
 - Getting text snippets for content analysis
 - Importing into spreadsheets or databases
 
-**Note**: When using `-c/--csv`, the script collects additional data during screenshot capture, which may slightly increase processing time per domain (~0.5-1 second).
+**Note**: When using `-c/--csv`, the script collects additional data during screenshot capture, which may slightly increase processing time per website (~0.5-1 second).
 
 ### Interactive HTML Report
 
@@ -255,14 +255,14 @@ The script **automatically generates** an interactive HTML report (`report.html`
 
 ### Features
 
-- **Sidebar Navigation**: List of all domains with search functionality
+- **Sidebar Navigation**: List of all websites with search functionality
 - **Image Gallery**: Grid view of all screenshots
 - **Full-Page Screenshots**: Captures entire page content, not just viewport
 - **Modal Viewer**: Click any image to view in full-screen modal
 - **Keyboard Navigation**: Arrow keys to navigate, ESC to close
 - **Right-Click Menu**: Exclude visually similar images
 - **Lazy Loading**: Images load on-demand for better performance
-- **Ordered Display**: Domains shown in processing order
+- **Ordered Display**: Websites shown in processing order
 
 ### Screenshots
 
@@ -275,13 +275,13 @@ The script **automatically generates** an interactive HTML report (`report.html`
 ### Using the Report
 
 1. Open `report.html` in your browser
-2. **Search domains**: Use the search box in the sidebar to filter domains
+2. **Search websites**: Use the search box in the sidebar to filter websites
 3. **View images**: Click any image in the gallery or sidebar to open in modal
 4. **Navigate**: Use arrow keys or click arrows to browse images
 5. **Exclude duplicates**: Right-click on an image and select "Exclude all matching images"
 6. **Filter management**: Click "X" on filter badges to restore excluded images
 
-The report is optimized to handle hundreds or thousands of domains efficiently with lazy loading and event delegation.
+The report is optimized to handle hundreds or thousands of websites efficiently with lazy loading and event delegation.
 
 
 ## Troubleshooting
