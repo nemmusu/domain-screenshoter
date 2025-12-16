@@ -1,0 +1,10 @@
+google.com
+wikipedia.org
+github.com
+stackoverflow.com
+reddit.com
+youtube.com
+twitter.com
+linkedin.com
+amazon.com
+microsoft.com
