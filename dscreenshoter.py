@@ -224,7 +224,7 @@ def safe_filename(value):
     return re.sub(r"[^a-zA-Z0-9._-]", "_", value)
 
 
-def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data=False):
+def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data=False, accept_cookies=True):
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
@@ -261,6 +261,85 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data
                         time.sleep(0.5)
                 else:
                     time.sleep(0.3)  # Sleep minimo per il rendering
+                
+                # Cerca e accetta banner cookie comuni (se abilitato)
+                if accept_cookies:
+                    try:
+                        from selenium.webdriver.common.by import By
+                        from selenium.webdriver.support.ui import WebDriverWait
+                        from selenium.webdriver.support import expected_conditions as EC
+                        
+                        # Lista di selettori comuni per pulsanti "Accetta" cookie
+                        cookie_selectors = [
+                            # Testi comuni in italiano/inglese
+                            "button[id*='accept']",
+                            "button[id*='Accept']",
+                            "button[id*='ACCEPT']",
+                            "button[class*='accept']",
+                            "button[class*='Accept']",
+                            "button[class*='cookie']",
+                            "button[class*='Cookie']",
+                            "#cookie-accept",
+                            "#accept-cookies",
+                            "#cookieAccept",
+                            ".cookie-accept",
+                            ".accept-cookies",
+                            # Testi nei pulsanti
+                            "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accept')]",
+                            "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accetta')]",
+                            "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accetto')]",
+                            "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'ok')]",
+                            "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'consenti')]",
+                            "//a[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accept')]",
+                            "//a[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accetta')]",
+                        ]
+                        
+                        cookie_clicked = False
+                        for selector in cookie_selectors:
+                            try:
+                                if selector.startswith("//"):
+                                    # XPath
+                                    elements = driver.find_elements(By.XPATH, selector)
+                                else:
+                                    # CSS selector
+                                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                                
+                                for element in elements:
+                                    if element.is_displayed() and element.is_enabled():
+                                        element.click()
+                                        cookie_clicked = True
+                                        time.sleep(0.2)  # Breve attesa dopo il click
+                                        break
+                                
+                                if cookie_clicked:
+                                    break
+                            except:
+                                continue
+                        
+                        # Se non trovato, prova con JavaScript per elementi nascosti
+                        if not cookie_clicked:
+                            try:
+                                driver.execute_script("""
+                                    var buttons = document.querySelectorAll('button, a, [role="button"]');
+                                    for (var i = 0; i < buttons.length; i++) {
+                                        var text = (buttons[i].textContent || buttons[i].innerText || '').toLowerCase();
+                                        var id = (buttons[i].id || '').toLowerCase();
+                                        var className = (buttons[i].className || '').toLowerCase();
+                                        if ((text.includes('accept') || text.includes('accetta') || text.includes('accetto') || 
+                                             text.includes('ok') || text.includes('consenti') || 
+                                             id.includes('accept') || id.includes('cookie') ||
+                                             className.includes('accept') || className.includes('cookie')) &&
+                                            (buttons[i].offsetParent !== null || buttons[i].style.display !== 'none')) {
+                                            buttons[i].click();
+                                            return true;
+                                        }
+                                    }
+                                    return false;
+                                """)
+                            except:
+                                pass
+                    except:
+                        pass
 
                 total_width = driver.execute_script("return document.body.scrollWidth")
                 total_height = driver.execute_script("return document.body.scrollHeight")
@@ -346,7 +425,7 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data
             pass
 
 
-def process_domains(domains, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, session_file, delay, vpn_mode, get_csv_data=False):
+def process_domains(domains, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, session_file, delay, vpn_mode, get_csv_data=False, accept_cookies=True):
 
     vpn_process = None
     session = load_session(session_file)
@@ -526,7 +605,7 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                 interrupted = False
 
                 futures = {
-                    executor.submit(take_screenshot, domain, output_folder, timeout, webdriver_path, get_csv_data): domain
+                    executor.submit(take_screenshot, domain, output_folder, timeout, webdriver_path, get_csv_data, accept_cookies): domain
                     for domain in batch_domains
                 }
 
@@ -656,7 +735,7 @@ def generate_csv(output_folder, successful_domains_order, domain_urls, domain_ti
         print(f"Warning: Could not generate CSV: {str(e)}")
 
 
-def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, delay, vpn_mode, get_csv_data=False):
+def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, delay, vpn_mode, get_csv_data=False, accept_cookies=True):
     retry_file = f"{os.path.basename(session_file)}.retry.session"
     successful_domains_order = []
     domain_urls = {}
@@ -777,7 +856,7 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
                 progress_bar_requests.reset()
                 completed_requests = 0
                 futures = {
-                    executor.submit(take_screenshot, domain, output_folder, timeout, webdriver_path, get_csv_data): domain
+                    executor.submit(take_screenshot, domain, output_folder, timeout, webdriver_path, get_csv_data, accept_cookies): domain
                     for domain in batch_domains
                 }
                 try:
@@ -940,6 +1019,7 @@ def main():
     parser.add_argument("-n", "--max-requests", type=int, help="Max requests before changing IP (required if using VPN)")
     parser.add_argument("-D", "--delay", type=int, default=0, help="Delay (in seconds) before connecting to the new VPN (default: 0)")
     parser.add_argument("-c", "--csv", action="store_true", help="Generate a CSV file with domain, status code, title, and body excerpt")
+    parser.add_argument("--no-cookie-accept", action="store_true", help="Disable automatic cookie consent banner acceptance (enabled by default)")
     args = parser.parse_args()
     if args.vpn_mode == "none":
         if args.max_requests:
@@ -1023,7 +1103,8 @@ def main():
         sys.exit(1)
     domains = list(set(domains))
     try:
-        process_domains(domains, args.screenshot_dir, args.vpn_dir if args.vpn_dir else "", args.max_requests, args.threads, args.timeout, webdriver_path, session_file, args.delay, args.vpn_mode, args.csv)
+        accept_cookies = not args.no_cookie_accept
+        process_domains(domains, args.screenshot_dir, args.vpn_dir if args.vpn_dir else "", args.max_requests, args.threads, args.timeout, webdriver_path, session_file, args.delay, args.vpn_mode, args.csv, accept_cookies)
     except KeyboardInterrupt:
         print("\nOperation canceled by user.")
         sys.exit(0)
@@ -1041,7 +1122,8 @@ def main():
             try:
                 retry_choice = input().strip().lower()
                 if retry_choice == 'y':
-                    continue_retry = retry_failed_domains(session_file, args.screenshot_dir, args.vpn_dir if args.vpn_dir else "", args.max_requests, args.threads, args.timeout, webdriver_path, args.delay, args.vpn_mode, args.csv)
+                    accept_cookies = not args.no_cookie_accept
+                    continue_retry = retry_failed_domains(session_file, args.screenshot_dir, args.vpn_dir if args.vpn_dir else "", args.max_requests, args.threads, args.timeout, webdriver_path, args.delay, args.vpn_mode, args.csv, accept_cookies)
                     if not continue_retry:
                         break
                     session = load_session(session_file)

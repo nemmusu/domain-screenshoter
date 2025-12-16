@@ -15,11 +15,12 @@ This tool automates taking screenshots of a list of domains, optionally routing 
 - **Graceful Interrupt Handling**: Safely terminates VPN connections and preserves session data.
 - **Automatic Report Generation**: Creates an interactive HTML report after completion.
 - **CSV Export**: Optional CSV report with domain, HTTP status code, page title, and body excerpt (`-c/--csv`).
+- **Automatic Cookie Consent**: Automatically accepts cookie consent banners (enabled by default, use `--no-cookie-accept` to disable).
 
 ## Requirements
 
 - Python 3.8+
-- pip packages: `requests`, `tqdm`, `selenium`, `pillow`, `imagehash`
+- pip packages: `requests`, `tqdm`, `selenium`, `pillow`, `imagehash`, `beautifulsoup4`
 - Chrome + matching `chromedriver`
   - **Note**: Since the tool uses Selenium with Chrome, it can capture JavaScript-rendered content, including Single Page Applications (SPAs) and dynamically loaded pages.
 - OpenVPN CLI (if `-m openvpn`) or NordVPN CLI (if `-m nordvpn`)
@@ -49,7 +50,7 @@ python dscreenshoter.py \\
   -o OUTPUT_DIR \\
   -t THREADS -T TIMEOUT \\
   [-n MAX_REQUESTS] [-D DELAY] \\
-  [-c]
+  [-c] [--no-cookie-accept]
 ```
 
 > **Note**: `-m none` is the default. If you don't specify `-m`, the script runs without VPN.
@@ -68,6 +69,7 @@ python dscreenshoter.py \\
 | `-n, --max-requests` | Requests per IP before switching VPN (required if using VPN) |
 | `-D, --delay` | Delay (in seconds) before re‑establishing VPN (default: 0) |
 | `-c, --csv` | Generate CSV report with status code, title, and body excerpt |
+| `--no-cookie-accept` | Disable automatic cookie consent banner acceptance (enabled by default) |
 
 **Command-line help:**
 
@@ -153,6 +155,17 @@ This will generate a `report.csv` file in the output directory with columns:
 - `title`: Page title
 - `body_excerpt`: First 200 characters of page body text
 
+### 5. Disable Cookie Consent Acceptance
+
+```bash
+python dscreenshoter.py \\
+    -d domains.txt -o screenshots \\
+    -t 10 -T 10 \\
+    --no-cookie-accept
+```
+
+By default, the tool automatically accepts cookie consent banners. Use `--no-cookie-accept` to disable this feature.
+
 ## Progress Bars and Sample Output
 
 During execution, the script displays progress bars using `tqdm`. Here's a complete session example:
@@ -169,6 +182,22 @@ When all domains are processed, or if you cancel, the current session is saved. 
 ## Resume & Retry
 
 If any domains fail due to timeouts or errors, they are marked in the session file. Upon restart, you can pick up where you left off or start over. The script will also prompt you to retry failed domains at the end.
+
+## Cookie Consent Handling
+
+The tool **automatically accepts cookie consent banners by default** to ensure full page content is captured. It uses multiple strategies:
+
+- **CSS/XPath Selectors**: Searches for common cookie banner button patterns (IDs, classes, text content)
+- **Text Matching**: Looks for buttons containing "accept", "accetta", "accetto", "ok", "consenti" (case-insensitive)
+- **JavaScript Fallback**: Uses JavaScript to find and click cookie buttons if standard selectors fail
+- **Error Handling**: Gracefully handles failures without interrupting the screenshot process
+
+The cookie acceptance happens automatically after each page loads, before taking the screenshot. This ensures that:
+- Cookie banners don't obstruct page content in screenshots
+- Full page functionality is available for JavaScript-rendered content
+- GDPR/CCPA consent dialogs are automatically handled
+
+To disable automatic cookie acceptance, use the `--no-cookie-accept` flag.
 
 ## Output Files
 
