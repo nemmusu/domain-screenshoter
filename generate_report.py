@@ -8,9 +8,13 @@ from tqdm import tqdm
 
 def generate_report(output_folder, columns=4):
     report_path = os.path.join(output_folder, "report.html")
-    image_files = [f for f in os.listdir(output_folder) if f.endswith(".png")]
+    screenshots_folder = os.path.join(output_folder, "screenshots")
+    if not os.path.exists(screenshots_folder):
+        print("No screenshots directory found in the specified directory.")
+        return
+    image_files = [f for f in os.listdir(screenshots_folder) if f.endswith(".png")]
     if not image_files:
-        print("No screenshots found in the specified directory.")
+        print("No screenshots found in the screenshots directory.")
         return
     
     report_info_path = os.path.join(output_folder, "report_info.json")
@@ -29,7 +33,7 @@ def generate_report(output_folder, columns=4):
             print(f"Warning: Could not load report info: {e}")
 
     def compute_hash(img):
-        img_path = os.path.join(output_folder, img)
+        img_path = os.path.join(screenshots_folder, img)
         try:
             img_hash = str(imagehash.average_hash(Image.open(img_path)))
             return img, img_hash
@@ -469,12 +473,13 @@ def generate_report(output_folder, columns=4):
         domain = domain_info['domain']
         domain_url = domain_info['url']
         img = domain_info['img']
+        img_path = f"screenshots/{img}"
         page_title = domain_info.get('title', '')
         truncated_domain = domain if len(domain) <= 25 else domain[:25] + "..."
         truncated_title = page_title if len(page_title) <= 30 else page_title[:30] + "..." if page_title else ""
         
         html_content += f"""
-                    <li class="domain-item" data-img="{html.escape(img)}" data-index="{idx}">
+                    <li class="domain-item" data-img="{html.escape(img_path)}" data-index="{idx}">
                         <div class="domain-name">{html.escape(truncated_domain)}</div>
                         {f'<div class="domain-title">{html.escape(truncated_title)}</div>' if truncated_title else ''}
                         <a href="{html.escape(domain_url)}" class="domain-url" target="_blank" onclick="event.stopPropagation()">{html.escape(domain_url)}</a>
@@ -504,9 +509,10 @@ def generate_report(output_folder, columns=4):
         
         domain_url_escaped = html.escape(domain_url)
         
+        img_path = f"screenshots/{html.escape(img)}"
         html_content += f"""
-                    <div class="gallery-item" data-img="{html.escape(img)}" data-domain="{html.escape(domain)}">
-                        <img src="{html.escape(img)}" alt="{html.escape(domain)}" data-hash="{img_hash}" loading="lazy">
+                    <div class="gallery-item" data-img="{img_path}" data-domain="{html.escape(domain)}">
+                        <img src="{img_path}" alt="{html.escape(domain)}" data-hash="{img_hash}" loading="lazy">
                         <div class="caption">
                             <div class="domain-name">{html.escape(truncated_domain)}</div>
                             {f'<div class="domain-title">{html.escape(truncated_title)}</div>' if truncated_title else ''}

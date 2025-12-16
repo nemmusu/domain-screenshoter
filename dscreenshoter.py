@@ -480,7 +480,9 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data
                 parsed = urlparse(url)
                 host = parsed.netloc if parsed.netloc else parsed.path
                 filename = safe_filename(host) + ".png"
-                screenshot_path = os.path.join(output_folder, filename)
+                screenshots_folder = os.path.join(output_folder, "screenshots")
+                os.makedirs(screenshots_folder, exist_ok=True)
+                screenshot_path = os.path.join(screenshots_folder, filename)
                 existed_before = os.path.exists(screenshot_path)
 
                 if not existed_before:
@@ -548,6 +550,10 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data
 
 
 def process_domains(domains, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, session_file, delay, vpn_mode, get_csv_data=False, accept_cookies=True):
+
+    # Create screenshots subdirectory
+    screenshots_folder = os.path.join(output_folder, "screenshots")
+    os.makedirs(screenshots_folder, exist_ok=True)
 
     vpn_process = None
     session = load_session(session_file)
@@ -858,6 +864,10 @@ def generate_csv(output_folder, successful_domains_order, domain_urls, domain_ti
 
 
 def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, delay, vpn_mode, get_csv_data=False, accept_cookies=True):
+    # Create screenshots subdirectory
+    screenshots_folder = os.path.join(output_folder, "screenshots")
+    os.makedirs(screenshots_folder, exist_ok=True)
+
     retry_file = f"{os.path.basename(session_file)}.retry.session"
     successful_domains_order = []
     domain_urls = {}
