@@ -251,88 +251,213 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data
                 driver.set_page_load_timeout(timeout)
                 driver.get(url)
                 
-                # Attendi che la pagina sia caricata (ridotto da 2+1+2=5s a ~0.5s)
                 if get_csv_data:
-                    # Attendi che il DOM sia pronto
                     try:
                         driver.execute_script("return document.readyState === 'complete'")
-                        time.sleep(0.5)  # Sleep ridotto per il rendering
+                        time.sleep(0.5)
                     except:
                         time.sleep(0.5)
                 else:
-                    time.sleep(0.3)  # Sleep minimo per il rendering
+                    time.sleep(0.3)
                 
-                # Cerca e accetta banner cookie comuni (se abilitato)
+                # Automatically accept cookie consent banners if enabled
                 if accept_cookies:
                     try:
                         from selenium.webdriver.common.by import By
                         from selenium.webdriver.support.ui import WebDriverWait
                         from selenium.webdriver.support import expected_conditions as EC
                         
-                        # Lista di selettori comuni per pulsanti "Accetta" cookie
-                        cookie_selectors = [
-                            # Testi comuni in italiano/inglese
-                            "button[id*='accept']",
-                            "button[id*='Accept']",
-                            "button[id*='ACCEPT']",
-                            "button[class*='accept']",
-                            "button[class*='Accept']",
-                            "button[class*='cookie']",
-                            "button[class*='Cookie']",
-                            "#cookie-accept",
-                            "#accept-cookies",
-                            "#cookieAccept",
-                            ".cookie-accept",
-                            ".accept-cookies",
-                            # Testi nei pulsanti
-                            "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accept')]",
-                            "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accetta')]",
-                            "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accetto')]",
-                            "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'ok')]",
-                            "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'consenti')]",
-                            "//a[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accept')]",
-                            "//a[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accetta')]",
+                        # High priority keywords: "accept all" variants (multilingual)
+                        accept_keywords_priority = [
+                            'accetta tutto', 'accetta tutti', 'accetto tutto', 'accetto tutti',
+                            'sono d\'accordo', 'sono daccordo', 'accettare tutto',
+                            'accept all', 'accept all cookies', 'i agree', 'i accept',
+                            'accept cookies', 'agree to all', 'allow all',
+                            'tout accepter', 'j\'accepte', 'j\'accepte tout', 'accepter tout',
+                            'jaccepte', 'aceptar todo', 'acepto todo', 'aceptar todas',
+                            'acepto todas', 'estoy de acuerdo', 'alle akzeptieren',
+                            'alle annehmen', 'ich stimme zu', 'akzeptieren', 'annehmen',
+                            'aceitar tudo', 'aceito tudo', 'concordo', 'aceitar todos',
+                            'alles accepteren', 'ik ga akkoord', 'akkoord',
+                            'zaakceptuj wszystko', 'akceptuję wszystko', 'zgadzam się',
+                            'принять все', 'согласен', 'принимаю все',
+                            'zenbu kyoka', 'kyoka suru', 'tongyi quanbu', 'jieshou quanbu',
                         ]
                         
+                        # General accept keywords (multilingual)
+                        accept_keywords = [
+                            'accetta', 'accetto', 'accettare', 'consenti', 'consento',
+                            'ok', 'va bene', 'conferma', 'accept', 'consent', 'agree',
+                            'allow', 'confirm', 'yes', 'proceed', 'continue',
+                            'accepter', 'consentir', 'd\'accord', 'daccord', 'oui',
+                            'aceptar', 'acepto', 'consentir', 'consiento', 'de acuerdo',
+                            'akzeptieren', 'annehmen', 'zustimmen', 'einverstanden',
+                            'aceitar', 'aceito', 'concordar', 'consentir',
+                            'accepteren', 'akkoord', 'toestemmen',
+                            'akceptować', 'zgadzać się', 'zaakceptować',
+                            'принять', 'согласиться', 'принимаю',
+                            'kyoka', 'shoudaku', 'tongyi', 'jieshou',
+                        ]
+                        
+                        # Keywords to avoid (open settings/menus)
+                        reject_keywords = [
+                            'personalizza', 'customize', 'settings', 'impostazioni',
+                            'preferenze', 'preferences', 'options', 'opzioni',
+                            'configura', 'configure', 'gestisci', 'manage',
+                            'dettagli', 'details', 'more', 'più', 'more options',
+                            'personaliser', 'personnaliser', 'paramètres',
+                            'personalizar', 'configurar', 'preferencias',
+                            'anpassen', 'einstellungen', 'konfigurieren',
+                            'personalizar', 'configurar', 'preferências',
+                        ]
+                        
+                        # Build dynamic XPath selectors for high priority keywords
+                        cookie_selectors_priority = []
+                        for keyword in accept_keywords_priority:
+                            keyword_lower = keyword.lower()
+                            cookie_selectors_priority.append(
+                                f"//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ', 'abcdefghijklmnopqrstuvwxyzaaaaaaaaceeeeiiiidnoooooouuuuybsaaaaaaaceeeeiiiidnoooooouuuuyby'), '{keyword_lower}')]"
+                            )
+                        
+                        # Build dynamic XPath selectors for general keywords (limit reject conditions to avoid overly long XPath)
+                        cookie_selectors = []
+                        for keyword in accept_keywords:
+                            keyword_lower = keyword.lower()
+                            reject_conditions = ' and '.join([f"not(contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ', 'abcdefghijklmnopqrstuvwxyzaaaaaaaaceeeeiiiidnoooooouuuuybsaaaaaaaceeeeiiiidnoooooouuuuyby'), '{rk}'))" for rk in reject_keywords[:3]])
+                            cookie_selectors.append(
+                                f"//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ', 'abcdefghijklmnopqrstuvwxyzaaaaaaaaceeeeiiiidnoooooouuuuybsaaaaaaaceeeeiiiidnoooooouuuuyby'), '{keyword_lower}') and {reject_conditions}]"
+                            )
+                        
+                        # Add common CSS selectors
+                        cookie_selectors.extend([
+                            "button[id*='accept-all']", "button[id*='AcceptAll']", "button[id*='acceptAll']",
+                            "button[class*='accept-all']", "button[class*='AcceptAll']",
+                            "#accept-all", "#acceptAll", ".accept-all",
+                            "button[id*='consent']", "button[id*='Consent']",
+                            "button[class*='consent']", "button[class*='Consent']",
+                            "#consent", ".consent", ".cookie-consent",
+                            "button[id*='accept']", "button[id*='Accept']",
+                            "button[class*='accept']", "button[class*='Accept']",
+                            "#cookie-accept", "#accept-cookies", "#cookieAccept",
+                            ".cookie-accept", ".accept-cookies",
+                        ])
+                        
                         cookie_clicked = False
-                        for selector in cookie_selectors:
+                        
+                        # Try high priority selectors first
+                        for selector in cookie_selectors_priority:
                             try:
-                                if selector.startswith("//"):
-                                    # XPath
-                                    elements = driver.find_elements(By.XPATH, selector)
-                                else:
-                                    # CSS selector
-                                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
-                                
+                                elements = driver.find_elements(By.XPATH, selector)
                                 for element in elements:
                                     if element.is_displayed() and element.is_enabled():
                                         element.click()
                                         cookie_clicked = True
-                                        time.sleep(0.2)  # Breve attesa dopo il click
+                                        time.sleep(0.2)
                                         break
-                                
                                 if cookie_clicked:
                                     break
                             except:
                                 continue
                         
-                        # Se non trovato, prova con JavaScript per elementi nascosti
+                        # Try other selectors if high priority didn't work
+                        if not cookie_clicked:
+                            for selector in cookie_selectors:
+                                try:
+                                    if selector.startswith("//"):
+                                        elements = driver.find_elements(By.XPATH, selector)
+                                    else:
+                                        elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                                    
+                                    for element in elements:
+                                        if element.is_displayed() and element.is_enabled():
+                                            text = (element.text or "").lower()
+                                            if any(reject_word in text for reject_word in reject_keywords):
+                                                continue
+                                            element.click()
+                                            cookie_clicked = True
+                                            time.sleep(0.2)
+                                            break
+                                    
+                                    if cookie_clicked:
+                                        break
+                                except:
+                                    continue
+                        
+                        # JavaScript fallback for hidden elements
                         if not cookie_clicked:
                             try:
                                 driver.execute_script("""
                                     var buttons = document.querySelectorAll('button, a, [role="button"]');
+                                    var priorityButtons = [];
+                                    var otherButtons = [];
+                                    
+                                    var priorityKeywords = ['accetta tutto', 'accetta tutti', 'accetto tutto', 'accetto tutti',
+                                        'sono d\\'accordo', 'sono daccordo', 'accept all', 'accept all cookies',
+                                        'i agree', 'i accept', 'tout accepter', 'j\\'accepte', 'jaccepte',
+                                        'aceptar todo', 'acepto todo', 'alle akzeptieren', 'aceitar tudo',
+                                        'alles accepteren', 'ik ga akkoord', 'zaakceptuj wszystko'];
+                                    
+                                    var acceptKeywords = ['accetta', 'accetto', 'accettare', 'consenti', 'consento',
+                                        'accept', 'consent', 'agree', 'allow', 'ok', 'confirm', 'yes',
+                                        'accepter', 'consentir', 'd\\'accord', 'aceptar', 'acepto',
+                                        'akzeptieren', 'annehmen', 'aceitar', 'aceito', 'accepteren',
+                                        'akkoord', 'akceptować', 'consentir', 'consiento'];
+                                    
+                                    var rejectKeywords = ['personalizza', 'customize', 'settings', 'impostazioni',
+                                        'preferenze', 'preferences', 'options', 'opzioni', 'configura',
+                                        'configure', 'gestisci', 'manage', 'dettagli', 'details', 'more',
+                                        'più', 'more options', 'personaliser', 'paramètres', 'personalizar',
+                                        'configurar', 'preferencias', 'anpassen', 'einstellungen'];
+                                    
                                     for (var i = 0; i < buttons.length; i++) {
                                         var text = (buttons[i].textContent || buttons[i].innerText || '').toLowerCase();
                                         var id = (buttons[i].id || '').toLowerCase();
                                         var className = (buttons[i].className || '').toLowerCase();
-                                        if ((text.includes('accept') || text.includes('accetta') || text.includes('accetto') || 
-                                             text.includes('ok') || text.includes('consenti') || 
-                                             id.includes('accept') || id.includes('cookie') ||
-                                             className.includes('accept') || className.includes('cookie')) &&
-                                            (buttons[i].offsetParent !== null || buttons[i].style.display !== 'none')) {
-                                            buttons[i].click();
-                                            return true;
+                                        
+                                        var shouldReject = false;
+                                        for (var j = 0; j < rejectKeywords.length; j++) {
+                                            if (text.includes(rejectKeywords[j])) {
+                                                shouldReject = true;
+                                                break;
+                                            }
                                         }
+                                        if (shouldReject) continue;
+                                        
+                                        var isVisible = buttons[i].offsetParent !== null || buttons[i].style.display !== 'none';
+                                        
+                                        var isPriority = false;
+                                        for (var j = 0; j < priorityKeywords.length; j++) {
+                                            if (text.includes(priorityKeywords[j])) {
+                                                isPriority = true;
+                                                break;
+                                            }
+                                        }
+                                        
+                                        if (isPriority && isVisible) {
+                                            priorityButtons.push(buttons[i]);
+                                        } else {
+                                            var isAccept = false;
+                                            for (var j = 0; j < acceptKeywords.length; j++) {
+                                                if (text.includes(acceptKeywords[j]) || 
+                                                    id.includes(acceptKeywords[j]) || 
+                                                    className.includes(acceptKeywords[j])) {
+                                                    isAccept = true;
+                                                    break;
+                                                }
+                                            }
+                                            if (isAccept && isVisible) {
+                                                otherButtons.push(buttons[i]);
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (priorityButtons.length > 0) {
+                                        priorityButtons[0].click();
+                                        return true;
+                                    }
+                                    if (otherButtons.length > 0) {
+                                        otherButtons[0].click();
+                                        return true;
                                     }
                                     return false;
                                 """)
@@ -350,7 +475,6 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data
                 total_height = min(total_height, max_height)
                 
                 driver.set_window_size(total_width, total_height)
-                # Sleep minimo dopo resize
                 time.sleep(0.2)
 
                 parsed = urlparse(url)
@@ -370,7 +494,6 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data
                     page_title = ""
                 
                 if get_csv_data:
-                    # Usa direttamente i dati del browser invece di richieste HTTP separate
                     status_code = 200
                     try:
                         status_code = int(driver.execute_script("""
@@ -387,7 +510,6 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data
                     except:
                         status_code = 200
                     
-                    # Usa execute_script direttamente invece di BeautifulSoup (più veloce)
                     body_excerpt = ""
                     try:
                         body_excerpt = driver.execute_script("""
@@ -443,7 +565,7 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
         domain_body_excerpts = session.get("domain_body_excerpts", {})
         
         def normalize_domain_for_session(d):
-            """Normalize expanded URLs to original domains (remove http:// and https:// for normal domains)"""
+            """Normalize expanded URLs to original domains"""
             if d.startswith(("http://", "https://")):
                 domain = d.replace("http://", "").replace("https://", "")
                 if not re.match(r"^\d{1,3}(?:\.\d{1,3}){3}$", domain):
