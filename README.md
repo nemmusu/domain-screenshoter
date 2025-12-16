@@ -50,7 +50,7 @@ python dscreenshoter.py \\
   -o OUTPUT_DIR \\
   -t THREADS -T TIMEOUT \\
   [-n MAX_REQUESTS] [-D DELAY] \\
-  [-c] [--no-cookie-accept]
+  [-c] [--no-cookie-accept] [--port PORTS]
 ```
 
 > **Note**: `-m none` is the default. If you don't specify `-m`, the script runs without VPN.
@@ -70,6 +70,7 @@ python dscreenshoter.py \\
 | `-D, --delay` | Delay (in seconds) before re‑establishing VPN (default: 0) |
 | `-c, --csv` | Generate CSV report with status code, title, and body excerpt |
 | `--no-cookie-accept` | Disable automatic cookie consent banner acceptance (enabled by default) |
+| `--port PORTS` | Additional ports to try (comma-separated, e.g., `8000,8001,8002`). Default ports 80 and 443 are always tried first. When custom ports are specified, all ports (default + custom) are tested even if a default port works. |
 
 **Command-line help:**
 
@@ -80,23 +81,43 @@ python dscreenshoter.py \\
 The domains file accepts various target formats, one per line:
 
 - **Full URL**: `https://example.com` or `http://example.com`
-  - Used exactly as specified
+  - Used with the default port (443 for HTTPS, 80 for HTTP)
+  - Custom ports from `--port` flag are also tried with both HTTP and HTTPS protocols
+  
+- **Full URL with port**: `https://example.com:8080` or `http://example.com:8080`
+  - Used with the explicit port
+  - Custom ports from `--port` flag are also tried (if different from explicit port)
+  
+- **Domain with port**: `example.com:8080` or `subdomain.example.com:9999`
+  - Tries both HTTP and HTTPS with the specified port
+  - Custom ports from `--port` flag are also tried (if different from explicit port)
+  
+- **IP address with port**: `192.168.1.1:8080` or `8.8.8.8:8443`
+  - Tries both HTTP and HTTPS with the specified port
+  - Custom ports from `--port` flag are also tried (if different from explicit port)
   
 - **CIDR notation**: `192.168.1.0/24` or `10.0.0.0/16`
   - Expands to all IP addresses in the range
   - Each IP is tried with both HTTP and HTTPS
+  - **Note**: CIDR notation does not support explicit ports
   
 - **IP address**: `192.168.1.1` or `8.8.8.8`
   - Tries both HTTP and HTTPS protocols
+  - Use `--port` to test additional custom ports (e.g., `--port 8000,8080`)
   
 - **Domain name**: `example.com` or `subdomain.example.com`
-  - Tries HTTPS first, then HTTP if HTTPS fails
-  - No protocol prefix needed
+  - Tries HTTPS first (port 443), then HTTP (port 80) if HTTPS fails
+  - Use `--port` to test additional custom ports (e.g., `--port 8000,8080`)
 
 **Example domains file:**
 ```
-https://google.com
-http://example.org
+https://example.com
+http://test.example.org
+https://api.example.com:8443
+webapp.example.com:8080
+192.168.1.100:3000
+http://10.0.0.5:5000
+internal.example.local:9000
 192.168.1.0/24
 8.8.8.8
 github.com
@@ -165,6 +186,17 @@ python dscreenshoter.py \\
 ```
 
 By default, the tool automatically accepts cookie consent banners. Use `--no-cookie-accept` to disable this feature.
+
+### 6. With Custom Ports
+
+```bash
+python dscreenshoter.py \\
+    -d domains.txt -o screenshots \\
+    -t 10 -T 15 \\
+    --port 8000,8080,8443
+```
+
+This will try the default ports (80 for HTTP, 443 for HTTPS) first, then also test the specified custom ports (8000, 8080, 8443) with both HTTP and HTTPS protocols. When custom ports are specified, all ports are tested even if a default port works successfully.
 
 ## Progress Bars and Sample Output
 

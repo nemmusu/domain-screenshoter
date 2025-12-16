@@ -194,37 +194,181 @@ def expand_cidr(cidr):
     return hosts
 
 
-def normalize_target(raw):
+def normalize_target(raw, ports=None):
     raw = raw.strip()
 
-    if raw.startswith(("http://", "https://")):
-        return [raw]
+    # Check for explicit port in format host:port or ip:port (but not CIDR)
+    has_explicit_port = False
+    explicit_port = None
+    host_without_port = raw
+    
+    # Skip CIDR notation check for port detection
+    if not re.match(r"^\d{1,3}(?:\.\d{1,3}){3}/\d{1,2}$", raw):
+        # Check if there's a port in the format host:port or ip:port
+        if ':' in raw and not raw.startswith(("http://", "https://")):
+            # Split by : and check if last part is a number (port)
+            parts = raw.rsplit(':', 1)
+            if len(parts) == 2:
+                try:
+                    explicit_port = int(parts[1])
+                    host_without_port = parts[0]
+                    has_explicit_port = True
+                except ValueError:
+                    # Not a port number, might be IPv6 or something else
+                    pass
+        elif raw.startswith(("http://", "https://")):
+            # URL with protocol - check if it has explicit port
+            parsed = urlparse(raw)
+            if parsed.port is not None:
+                explicit_port = parsed.port
+                has_explicit_port = True
+                host_without_port = parsed.netloc.split(':')[0] if ':' in parsed.netloc else parsed.netloc
+                # Reconstruct without port for processing
+                if raw.startswith("https://"):
+                    host_without_port = raw.replace("https://", "").split(':')[0]
+                else:
+                    host_without_port = raw.replace("http://", "").split(':')[0]
 
-    if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}/\d{1,2}$", raw):
-        ips = expand_cidr(raw)
-        urls = []
-        for ip in ips:
-            urls.append(f"https://{ip}")
-            urls.append(f"http://{ip}")
-        return urls
-
-    if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}$", raw):
-        return [
+    # Parse custom ports if provided
+    custom_ports = []
+    if ports:
+        try:
+            custom_ports = [int(p.strip()) for p in ports.split(',') if p.strip()]
+        except ValueError:
+            pass
+    
+    # If URL already has explicit port, add it and custom ports
+    if raw.startswith(("http://", "https://")) and has_explicit_port:
+        urls_with_explicit = [raw]
+        # Add custom ports if specified (avoid duplicates)
+        if custom_ports:
+            parsed = urlparse(raw)
+            host = parsed.netloc.split(':')[0] if ':' in parsed.netloc else parsed.netloc
+            protocol = "https://" if raw.startswith("https://") else "http://"
+            for port in custom_ports:
+                # Only add if different from explicit port
+                if port != explicit_port:
+                    urls_with_explicit.append(f"{protocol}{host}:{port}")
+        return urls_with_explicit
+    
+    # If we detected explicit port in format host:port or ip:port
+    if has_explicit_port and not raw.startswith(("http://", "https://")):
+        # Try both HTTP and HTTPS with the explicit port
+        urls_with_explicit = [
             f"https://{raw}",
             f"http://{raw}"
         ]
+        # Add custom ports if specified (avoid duplicates)
+        if custom_ports:
+            host_without_port = raw.rsplit(':', 1)[0]
+            for port in custom_ports:
+                # Only add if different from explicit port
+                if port != explicit_port:
+                    urls_with_explicit.append(f"https://{host_without_port}:{port}")
+                    urls_with_explicit.append(f"http://{host_without_port}:{port}")
+        return urls_with_explicit
 
-    return [
-        f"https://{raw}",
-        f"http://{raw}"
-    ]
+    # Continue with normal processing
+    if raw.startswith(("http://", "https://")):
+        # URL without port - will add ports if specified
+        base_url = raw
+        protocol = "https://" if raw.startswith("https://") else "http://"
+        domain = raw.replace("https://", "").replace("http://", "")
+        
+        # If custom ports are specified, try default port with original protocol, then custom ports with both protocols
+        if custom_ports:
+            urls = []
+            # Try default port with original protocol first
+            if protocol == "https://":
+                urls.append(base_url)  # https://domain (port 443)
+            else:
+                urls.append(base_url)  # http://domain (port 80)
+            
+            # Then try custom ports with both protocols
+            for port in custom_ports:
+                urls.append(f"https://{domain}:{port}")
+                urls.append(f"http://{domain}:{port}")
+            return urls
+    else:
+        base_url = None
+        protocol = None
+        domain = raw
+
+    urls = []
+    
+    # Default ports (80 for HTTP, 443 for HTTPS)
+    default_ports = [443, 80]
+    
+    # Combine default and custom ports, removing duplicates
+    all_ports = list(dict.fromkeys(default_ports + custom_ports))  # dict.fromkeys preserves order
+    
+    # Handle CIDR notation
+    if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}/\d{1,2}$", domain):
+        ips = expand_cidr(domain)
+        for ip in ips:
+            for port in all_ports:
+                if port == 443:
+                    urls.append(f"https://{ip}")
+                elif port == 80:
+                    urls.append(f"http://{ip}")
+                else:
+                    # Custom port: try both HTTP and HTTPS
+                    urls.append(f"https://{ip}:{port}")
+                    urls.append(f"http://{ip}:{port}")
+        return urls
+    
+    # Handle IP address
+    if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}$", domain):
+        for port in all_ports:
+            if port == 443:
+                urls.append(f"https://{domain}")
+            elif port == 80:
+                urls.append(f"http://{domain}")
+            else:
+                # Custom port: try both HTTP and HTTPS
+                urls.append(f"https://{domain}:{port}")
+                urls.append(f"http://{domain}:{port}")
+        return urls
+    
+    # Handle domain name or URL without port
+    if base_url:
+        # URL was provided but without port
+        # Try default ports with the original protocol, then custom ports with both protocols
+        for port in all_ports:
+            if port == 443 and protocol == "https://":
+                urls.append(base_url)
+            elif port == 80 and protocol == "http://":
+                urls.append(base_url)
+            elif port == 80 and protocol == "https://":
+                # Skip port 80 for HTTPS URLs
+                continue
+            elif port == 443 and protocol == "http://":
+                # Skip port 443 for HTTP URLs
+                continue
+            else:
+                # Custom port: try with both protocols
+                urls.append(f"https://{domain}:{port}")
+                urls.append(f"http://{domain}:{port}")
+    else:
+        # Domain name only
+        for port in all_ports:
+            if port == 443:
+                urls.append(f"https://{domain}")
+            elif port == 80:
+                urls.append(f"http://{domain}")
+            else:
+                # Custom port: try both HTTP and HTTPS
+                urls.append(f"https://{domain}:{port}")
+                urls.append(f"http://{domain}:{port}")
+    
+    return urls
 
 
 def safe_filename(value):
     return re.sub(r"[^a-zA-Z0-9._-]", "_", value)
 
 
-def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data=False, accept_cookies=True):
+def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data=False, accept_cookies=True, ports=None):
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
@@ -243,8 +387,12 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data
         return False, None
 
     try:
-        urls = normalize_target(domain)
+        urls = normalize_target(domain, ports=ports)
         urls_sorted = sorted(urls, key=lambda x: (0 if x.startswith('https://') else 1))
+        
+        # If custom ports are specified, try all URLs; otherwise stop at first success
+        has_custom_ports = ports is not None and ports.strip()
+        first_success = None
 
         for url in urls_sorted:
             try:
@@ -479,13 +627,21 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data
 
                 parsed = urlparse(url)
                 host = parsed.netloc if parsed.netloc else parsed.path
-                filename = safe_filename(host) + ".png"
+                # Extract domain without port for consistent filename
+                domain_only = host.split(':')[0] if ':' in host else host
+                filename = safe_filename(domain_only) + ".png"
                 screenshots_folder = os.path.join(output_folder, "screenshots")
                 os.makedirs(screenshots_folder, exist_ok=True)
                 screenshot_path = os.path.join(screenshots_folder, filename)
                 existed_before = os.path.exists(screenshot_path)
 
-                if not existed_before:
+                # Save screenshot only if not already saved (for custom ports, save only for first success)
+                should_save_screenshot = not existed_before
+                if has_custom_ports and first_success is not None:
+                    # Already have a successful result, skip saving screenshot for subsequent attempts
+                    should_save_screenshot = False
+                
+                if should_save_screenshot:
                     driver.save_screenshot(screenshot_path)
                     if not (os.path.exists(screenshot_path) and os.path.getsize(screenshot_path) > 5000):
                         continue
@@ -530,12 +686,28 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data
                     status_code = None
                     body_excerpt = ""
                 
-                return (not existed_before, url, page_title, status_code, body_excerpt)
+                result = (not existed_before, url, page_title, status_code, body_excerpt)
+                
+                # If custom ports are specified, continue trying all URLs but save first success
+                if has_custom_ports:
+                    if first_success is None:
+                        first_success = result
+                    # Continue to try all ports even if one works
+                    continue
+                else:
+                    # No custom ports: return first success
+                    return result
 
             except Exception as e:
                 logging.getLogger('domain_errors').error(f"{domain}: URL error {url} → {e}")
                 continue
 
+        # If custom ports were specified, return first success (or failure if none worked)
+        if has_custom_ports:
+            if first_success is not None:
+                return first_success
+            return False, None, "", None, ""
+        
         return False, None, "", None, ""
 
     except Exception as e:
@@ -549,7 +721,7 @@ def take_screenshot(domain, output_folder, timeout, webdriver_path, get_csv_data
             pass
 
 
-def process_domains(domains, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, session_file, delay, vpn_mode, get_csv_data=False, accept_cookies=True):
+def process_domains(domains, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, session_file, delay, vpn_mode, get_csv_data=False, accept_cookies=True, ports=None):
 
     # Create screenshots subdirectory
     screenshots_folder = os.path.join(output_folder, "screenshots")
@@ -733,7 +905,7 @@ def process_domains(domains, output_folder, vpn_dir, max_requests, threads, time
                 interrupted = False
 
                 futures = {
-                    executor.submit(take_screenshot, domain, output_folder, timeout, webdriver_path, get_csv_data, accept_cookies): domain
+                    executor.submit(take_screenshot, domain, output_folder, timeout, webdriver_path, get_csv_data, accept_cookies, ports): domain
                     for domain in batch_domains
                 }
 
@@ -863,7 +1035,7 @@ def generate_csv(output_folder, successful_domains_order, domain_urls, domain_ti
         print(f"Warning: Could not generate CSV: {str(e)}")
 
 
-def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, delay, vpn_mode, get_csv_data=False, accept_cookies=True):
+def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, threads, timeout, webdriver_path, delay, vpn_mode, get_csv_data=False, accept_cookies=True, ports=None):
     # Create screenshots subdirectory
     screenshots_folder = os.path.join(output_folder, "screenshots")
     os.makedirs(screenshots_folder, exist_ok=True)
@@ -988,7 +1160,7 @@ def retry_failed_domains(session_file, output_folder, vpn_dir, max_requests, thr
                 progress_bar_requests.reset()
                 completed_requests = 0
                 futures = {
-                    executor.submit(take_screenshot, domain, output_folder, timeout, webdriver_path, get_csv_data, accept_cookies): domain
+                    executor.submit(take_screenshot, domain, output_folder, timeout, webdriver_path, get_csv_data, accept_cookies, ports): domain
                     for domain in batch_domains
                 }
                 try:
@@ -1152,6 +1324,7 @@ def main():
     parser.add_argument("-D", "--delay", type=int, default=0, help="Delay (in seconds) before connecting to the new VPN (default: 0)")
     parser.add_argument("-c", "--csv", action="store_true", help="Generate a CSV file with domain, status code, title, and body excerpt")
     parser.add_argument("--no-cookie-accept", action="store_true", help="Disable automatic cookie consent banner acceptance (enabled by default)")
+    parser.add_argument("--port", help="Additional ports to try (comma-separated, e.g., 8000,8001,8002). Default ports 80 and 443 are always tried first. When custom ports are specified, all ports (default + custom) are tested even if a default port works.")
     args = parser.parse_args()
     if args.vpn_mode == "none":
         if args.max_requests:
@@ -1236,7 +1409,7 @@ def main():
     domains = list(set(domains))
     try:
         accept_cookies = not args.no_cookie_accept
-        process_domains(domains, args.screenshot_dir, args.vpn_dir if args.vpn_dir else "", args.max_requests, args.threads, args.timeout, webdriver_path, session_file, args.delay, args.vpn_mode, args.csv, accept_cookies)
+        process_domains(domains, args.screenshot_dir, args.vpn_dir if args.vpn_dir else "", args.max_requests, args.threads, args.timeout, webdriver_path, session_file, args.delay, args.vpn_mode, args.csv, accept_cookies, args.port)
     except KeyboardInterrupt:
         print("\nOperation canceled by user.")
         sys.exit(0)
@@ -1255,7 +1428,7 @@ def main():
                 retry_choice = input().strip().lower()
                 if retry_choice == 'y':
                     accept_cookies = not args.no_cookie_accept
-                    continue_retry = retry_failed_domains(session_file, args.screenshot_dir, args.vpn_dir if args.vpn_dir else "", args.max_requests, args.threads, args.timeout, webdriver_path, args.delay, args.vpn_mode, args.csv, accept_cookies)
+                    continue_retry = retry_failed_domains(session_file, args.screenshot_dir, args.vpn_dir if args.vpn_dir else "", args.max_requests, args.threads, args.timeout, webdriver_path, args.delay, args.vpn_mode, args.csv, accept_cookies, args.port)
                     if not continue_retry:
                         break
                     session = load_session(session_file)
