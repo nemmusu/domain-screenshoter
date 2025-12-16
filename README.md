@@ -70,6 +70,7 @@ python dscreenshoter.py \\
 | `-c, --csv` | Generate CSV report with status code, title, and body excerpt |
 
 **Command-line help:**
+
 ![Help Output](img/help.png)
 
 ### Target Formats
